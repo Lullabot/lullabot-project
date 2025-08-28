@@ -1,0 +1,28 @@
+ides:
+  cursor:
+    name: "Cursor"
+    memory-bank-command: "npx cursor-bank init"
+    rules-path: ".cursor/rules"
+    project-validation:
+      drupal:
+        required-files: ["composer.json"]
+        required-content:
+          composer.json: "drupal/core"
+        optional-files: [".git", "web/sites/default/settings.php"]
+      # Future project types can be added here
+      # react:
+      #   required-files: ["package.json"]
+      #   required-content:
+      #     package.json: "react"
+      #   optional-files: [".git", "src/App.js"]
+
+  # Future IDEs can be easily added here
+  # windsurf:
+  #   name: "Windsurf"
+  #   memory-bank-command: "npx windsurf-ai init"
+  #   rules-path: ".windsurf/rules"
+  #   project-validation:
+  #     drupal:
+  #       required-files: ["composer.json"]
+  #       required-content:
+  #         composer.json: "drupal/core"
