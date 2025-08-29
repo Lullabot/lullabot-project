@@ -5,7 +5,7 @@ import chalk from 'chalk';
 
 /**
  * Load configuration from YAML file.
- * Reads the main configuration file that contains IDE and project definitions.
+ * Reads the main configuration file that contains tool and project definitions.
  *
  * @returns {Promise<Object>} Parsed configuration object
  * @throws {Error} If configuration file cannot be loaded or parsed
@@ -23,14 +23,14 @@ async function loadConfig() {
 }
 
 /**
- * Load IDE configuration from YAML file (backward compatibility).
- * Returns a simplified structure for legacy code that expects only IDE settings.
+ * Load tool configuration from YAML file (backward compatibility).
+ * Returns a simplified structure for legacy code that expects only tool settings.
  *
- * @returns {Promise<Object>} Object containing IDE configurations
+ * @returns {Promise<Object>} Object containing tool configurations
  */
-async function loadIdeConfig() {
+async function loadToolConfig() {
   const config = await loadConfig();
-  return { ides: config.ides };
+  return { tools: config.tools };
 }
 
 /**
@@ -39,14 +39,14 @@ async function loadIdeConfig() {
  * is a valid project of the specified type.
  *
  * @param {string} projectType - The project type to validate
- * @param {string} ide - The IDE identifier
+ * @param {string} tool - The tool identifier
  * @param {Object} config - Full configuration object
  * @throws {Error} If project validation fails
  */
-async function validateProject(projectType, ide, config) {
-  const ideSettings = config.ides[ide];
-  if (!ideSettings) {
-    throw new Error(`IDE configuration not found for: ${ide}`);
+async function validateProject(projectType, tool, config) {
+  const toolSettings = config.tools[tool];
+  if (!toolSettings) {
+    throw new Error(`Tool configuration not found for: ${tool}`);
   }
 
   const projectConfig = config.projects[projectType];
@@ -123,61 +123,61 @@ async function validateProject(projectType, ide, config) {
 }
 
 /**
- * Get IDE settings for a specific IDE.
- * Returns the configuration object for the specified IDE.
+ * Get tool settings for a specific tool.
+ * Returns the configuration object for the specified tool.
  *
- * @param {string} ide - The IDE identifier
- * @param {Object} ideConfig - IDE configuration object
- * @returns {Object} IDE settings object
- * @throws {Error} If IDE configuration is not found
+ * @param {string} tool - The tool identifier
+ * @param {Object} toolConfig - Tool configuration object
+ * @returns {Object} Tool settings object
+ * @throws {Error} If tool configuration is not found
  */
-function getIdeSettings(ide, ideConfig) {
-  const settings = ideConfig.ides[ide];
+function getToolSettings(tool, toolConfig) {
+  const settings = toolConfig.tools[tool];
   if (!settings) {
-    throw new Error(`IDE configuration not found for: ${ide}`);
+    throw new Error(`Tool configuration not found for: ${tool}`);
   }
   return settings;
 }
 
 /**
- * Get available IDEs from the configuration.
- * Returns an array of IDE identifiers that are configured.
+ * Get available tools from the configuration.
+ * Returns an array of tool identifiers that are configured.
  *
- * @param {Object} ideConfig - IDE configuration object
- * @returns {string[]} Array of available IDE identifiers
+ * @param {Object} toolConfig - Tool configuration object
+ * @returns {string[]} Array of available tool identifiers
  */
-function getAvailableIdes(ideConfig) {
-  return Object.keys(ideConfig.ides);
+function getAvailableTools(toolConfig) {
+  return Object.keys(toolConfig.tools);
 }
 
 /**
- * Get available project types for an IDE.
- * Returns an array of project types that are supported by the specified IDE.
+ * Get available project types for a tool.
+ * Returns an array of project types that are supported by the specified tool.
  *
- * @param {string} ide - The IDE identifier
- * @param {Object} ideConfig - IDE configuration object
+ * @param {string} tool - The tool identifier
+ * @param {Object} toolConfig - Tool configuration object
  * @returns {string[]} Array of available project type identifiers
  */
-function getAvailableProjectTypes(ide, ideConfig) {
-  const ideSettings = getIdeSettings(ide, ideConfig);
-  return Object.keys(ideSettings['project-validation'] || {});
+function getAvailableProjectTypes(tool, toolConfig) {
+  const toolSettings = getToolSettings(tool, toolConfig);
+  return Object.keys(toolSettings['project-validation'] || {});
 }
 
 /**
- * Get tasks for the given IDE and project type.
- * Combines IDE-specific tasks and project-specific tasks into a single object.
- * Each task is marked with its source (ide or project) for tracking.
+ * Get tasks for the given tool and project type.
+ * Combines tool-specific tasks and project-specific tasks into a single object.
+ * Each task is marked with its source (tool or project) for tracking.
  *
- * @param {string} ide - The IDE identifier
+ * @param {string} tool - The tool identifier
  * @param {string} projectType - The project type
  * @param {Object} config - Full configuration object
  * @returns {Object} Object containing all available tasks
- * @throws {Error} If IDE or project configuration is not found
+ * @throws {Error} If tool or project configuration is not found
  */
-function getTasks(ide, projectType, config) {
-  const ideSettings = config.ides[ide];
-  if (!ideSettings) {
-    throw new Error(`IDE configuration not found for: ${ide}`);
+function getTasks(tool, projectType, config) {
+  const toolSettings = config.tools[tool];
+  if (!toolSettings) {
+    throw new Error(`Tool configuration not found for: ${tool}`);
   }
 
   const projectConfig = config.projects[projectType];
@@ -187,13 +187,13 @@ function getTasks(ide, projectType, config) {
 
   const tasks = {};
 
-  // Add IDE tasks
-  if (ideSettings.tasks) {
-    for (const [taskId, task] of Object.entries(ideSettings.tasks)) {
+  // Add tool tasks
+  if (toolSettings.tasks) {
+    for (const [taskId, task] of Object.entries(toolSettings.tasks)) {
       tasks[taskId] = {
         ...task,
         id: taskId,
-        taskSource: 'ide'
+        taskSource: 'tool'
       };
     }
   }
@@ -214,10 +214,10 @@ function getTasks(ide, projectType, config) {
 
 export {
   loadConfig,
-  loadIdeConfig,
+  loadToolConfig,
   validateProject,
-  getIdeSettings,
-  getAvailableIdes,
+  getToolSettings,
+  getAvailableTools,
   getAvailableProjectTypes,
   getTasks
 };

@@ -1,10 +1,10 @@
 # Lullabot Project Setup
 
-A CLI tool that helps developers set up their IDE environment with AI tools, memory banks, and project-specific rules. The tool is designed to be extensible, user-friendly, and maintainable.
+A CLI tool that helps developers set up their development environment with AI tools, memory banks, and project-specific rules. The tool is designed to be extensible, user-friendly, and maintainable.
 
 ## Features
 
-- **IDE Configuration**: Set up your development environment for supported IDEs
+- **Tool Configuration**: Set up your development environment for supported tools
 - **Project Validation**: Automatically validate project types and structure
 - **Memory Bank Setup**: Configure AI memory banks for enhanced development
 - **Project Rules**: Install project-specific coding standards and guidelines
@@ -12,7 +12,7 @@ A CLI tool that helps developers set up their IDE environment with AI tools, mem
 - **Flexible Task System**: Dynamic task execution with package installation, file copying, and command execution
 - **Interactive Setup**: Guided setup process with clear prompts
 - **Update Management**: Easy updates to existing configurations
-- **Extensible**: Easy to add new IDEs and project types
+- **Extensible**: Easy to add new tools and project types
 
 ## Installation
 
@@ -49,7 +49,7 @@ lullabot-project init [options]
 ```
 
 **Options:**
-- `-i, --ide <ide>` - Specify IDE (cursor, windsurf, vscode)
+- `-t, --tool <tool>` - Specify tool (cursor, windsurf, vscode)
 - `-p, --project <type>` - Specify project type (drupal)
 - `--skip-tasks <tasks>` - Skip specific tasks (comma-separated)
 - `--tasks <tasks>` - Execute only specific tasks (comma-separated)
@@ -64,28 +64,28 @@ lullabot-project init [options]
 lullabot-project init
 
 # Quick setup for Cursor + Drupal
-lullabot-project init -i cursor -p drupal
+lullabot-project init -t cursor -p drupal
 
 # Setup with all features (default)
-lullabot-project init -i cursor -p drupal --all-tasks
+lullabot-project init -t cursor -p drupal --all-tasks
 
 # Setup without memory bank
-lullabot-project init -i cursor -p drupal --skip-tasks memory-bank
+lullabot-project init -t cursor -p drupal --skip-tasks memory-bank
 
 # Setup without rules
-lullabot-project init -i cursor -p drupal --skip-tasks rules
+lullabot-project init -t cursor -p drupal --skip-tasks rules
 
 # Setup without both features
-lullabot-project init -i cursor -p drupal --skip-tasks memory-bank,rules
+lullabot-project init -t cursor -p drupal --skip-tasks memory-bank,rules
 
 # Execute only specific tasks
-lullabot-project init -i cursor -p drupal --tasks memory-bank
+lullabot-project init -t cursor -p drupal --tasks memory-bank
 
 # Execute all available tasks
-lullabot-project init -i cursor -p drupal --all-tasks
+lullabot-project init -t cursor -p drupal --all-tasks
 
 # Verbose setup with validation
-lullabot-project init -i cursor -p drupal -v
+lullabot-project init -t cursor -p drupal -v
 ```
 
 #### `update` - Update Existing Setup
@@ -97,7 +97,7 @@ lullabot-project update [options]
 ```
 
 **Options:**
-- `-i, --ide <ide>` - Override stored IDE setting (optional)
+- `-t, --tool <tool>` - Override stored tool setting (optional)
 - `-p, --project <type>` - Override stored project type (optional)
 - `--skip-tasks <tasks>` - Skip specific tasks (comma-separated)
 - `--tasks <tasks>` - Execute only specific tasks (comma-separated)
@@ -114,8 +114,8 @@ lullabot-project update
 # Update with verbose output
 lullabot-project update -v
 
-# Update and change IDE
-lullabot-project update -i windsurf
+# Update and change tool
+lullabot-project update -t windsurf
 
 # Update and skip memory bank
 lullabot-project update --skip-tasks memory-bank
@@ -124,7 +124,7 @@ lullabot-project update --skip-tasks memory-bank
 lullabot-project update --skip-tasks rules
 
 # Update with overrides and verbose
-lullabot-project update -i cursor -p drupal --skip-tasks rules -v
+lullabot-project update -t cursor -p drupal --skip-tasks rules -v
 
 # Force update if configuration is corrupted
 lullabot-project update --force
@@ -194,10 +194,10 @@ lullabot-project remove --force --verbose
 
 **What gets removed:**
 - Configuration file (`.lullabot-project.yml`)
-- Rules files (`.{ide}/rules/*` or IDE-specific)
+- Rules files (`.{tool}/rules/*` or tool-specific)
 - Memory bank files (noted but not removed as they may be used by other projects)
 
-## Supported IDEs
+## Supported Tools
 
 ### Cursor
 
@@ -219,27 +219,27 @@ lullabot-project remove --force --verbose
 - **Supported Projects**: Drupal
 - **Additional Tasks**: VSCode XDebug setup
 
-### Adding New IDEs
+### Adding New Tools
 
-New IDEs can be easily added by updating the `config/config.yml` file:
+New tools can be easily added by updating the `config/config.yml` file:
 
 ```yaml
-ides:
-  newide:
-    name: "New IDE"
+tools:
+  newtool:
+    name: "New Tool"
     tasks:
       rules:
         name: "Project Rules"
         type: "copy-files"
-        source: "assets/rules/newide/{project-type}/"
-        target: ".newide/rules/"
+        source: "assets/rules/newtool/{project-type}/"
+        target: ".newtool/rules/"
         required: false
         prompt: "Would you like to install project-specific rules and guidelines?"
 ```
 
 ## Task System
 
-The tool uses a flexible task system that allows different IDEs to have different setup requirements. Each IDE can define multiple tasks of different types.
+The tool uses a flexible task system that allows different tools to have different setup requirements. Each tool can define multiple tasks of different types.
 
 ### Task Types
 
@@ -275,7 +275,7 @@ memory-bank:
 
 #### `copy-files` - Copy Files and Directories
 
-Copy project-specific files to IDE locations. Rules are pulled from the Git repository, while other files use local assets:
+Copy project-specific files to tool locations. Rules are pulled from the Git repository, while other files use local assets:
 
 ```yaml
 rules:
@@ -288,7 +288,7 @@ rules:
 ```
 
 **Configuration:**
-- `source`: Source directory with placeholders (`{ide}`, `{project-type}`)
+- `source`: Source directory with placeholders (`{tool}`, `{project-type}`)
 - `target`: Target directory with placeholders
 - `items`: Optional array of specific files/directories to copy (if not specified, copies all items)
 
@@ -360,14 +360,14 @@ lullabot-project init --all-tasks
 
 **Memory Bank Support:**
 - Memory bank setup can be handled through the task system
-- Add a `package-install` task for memory bank setup if the IDE supports it
-- If the IDE does not support external memory banks, simply don't include a memory bank task
-- The tool will automatically skip memory bank prompts for IDEs without memory bank tasks
+- Add a `package-install` task for memory bank setup if the tool supports it
+- If the tool does not support external memory banks, simply don't include a memory bank task
+- The tool will automatically skip memory bank prompts for tools without memory bank tasks
 
 **Rules Path:**
-- Rules paths are automatically inferred from the IDE key (e.g., "cursor" → `.cursor/rules`)
+- Rules paths are automatically inferred from the tool key (e.g., "cursor" → `.cursor/rules`)
 - No additional configuration needed for rules paths
-- Each IDE can have its own project-specific rules in different formats
+- Each tool can have its own project-specific rules in different formats
 
 ## Supported Project Types
 
@@ -396,7 +396,7 @@ projects:
         - "src/"
 ```
 
-Then create the rules directory structure for each IDE: `assets/rules/{ide}/{project-type}/`
+Then create the rules directory structure for each tool: `assets/rules/{tool}/{project-type}/`
 
 ## Configuration File
 
@@ -405,7 +405,7 @@ The tool creates a `.lullabot-project.yml` file in your project root:
 ```yaml
 project:
   type: "drupal"
-  ide: "cursor"
+  tool: "cursor"
 
 features:
   taskPreferences:
@@ -453,7 +453,7 @@ The tool installs comprehensive rules for Drupal development:
 
 ### Rules Location
 
-Rules are installed in IDE-specific locations:
+Rules are installed in tool-specific locations:
 - **Cursor**: `.cursor/rules/`
 - **Windsurf**: `.windsurf/rules/`
 
@@ -562,13 +562,13 @@ lullabot-project/
 ├── src/
 │   ├── cli.js (CLI logic and command handling)
 │   ├── prompts.js (interactive prompts)
-│   ├── ide-config.js (IDE configuration handling)
+│   ├── tool-config.js (Tool configuration handling)
 │   ├── file-operations.js (file copying/management)
 │   ├── git-operations.js (Git-based file access)
 │   ├── commands.js (specific command execution)
 │   └── validation.js (directory validation)
 ├── config/
-│   └── config.yml (IDE and project definitions)
+│   └── config.yml (Tool and project definitions)
 ├── assets/
 │   ├── rules/
 │   │   ├── cursor/
@@ -594,7 +594,7 @@ lullabot-project/
 
 ### Adding New Features
 
-1. **New IDE**: Update `config/config.yml` and create rules directory in `assets/rules/{ide}/`
+1. **New Tool**: Update `config/config.yml` and create rules directory in `assets/rules/{tool}/`
 2. **New Project Type**: Add validation rules and create project-specific rules
 3. **New Commands**: Add command logic in `src/commands.js` and CLI setup in `index.js`
 
@@ -671,7 +671,7 @@ For issues and questions:
 - **Enhanced Task System**: Dynamic task execution with package installation, file copying, and command execution
 - **Flexible File Copying**: Support for copying individual files and/or directories
 - **Backward Compatibility**: All existing configurations continue to work without changes
-- Support for Cursor, Windsurf, and VSCode IDEs
+- Support for Cursor, Windsurf, and VSCode tools
 - Drupal project type
 - Memory bank integration
 - Project rules installation

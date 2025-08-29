@@ -9,7 +9,7 @@ import { initSetup, updateSetup, showConfig, removeSetup } from './cli.js';
  * @param {boolean} options.dryRun - Whether to perform a dry run without making changes
  * @param {boolean} options.verbose - Whether to show detailed output
  * @param {boolean} options.skipValidation - Whether to skip project validation
- * @param {string} options.ide - IDE to use (if provided via command line)
+ * @param {string} options.tool - Tool to use (if provided via command line)
  * @param {string} options.project - Project type (if provided via command line)
  * @param {string} options.tasks - Comma-separated list of tasks to enable
  * @param {string} options.skipTasks - Comma-separated list of tasks to skip
@@ -35,7 +35,7 @@ async function initCommand(options) {
  * @param {boolean} options.dryRun - Whether to perform a dry run without making changes
  * @param {boolean} options.verbose - Whether to show detailed output
  * @param {boolean} options.force - Whether to force update even with corrupted config
- * @param {string} options.ide - IDE to use (if provided via command line)
+ * @param {string} options.tool - Tool to use (if provided via command line)
  * @param {string} options.project - Project type (if provided via command line)
  * @param {string} options.tasks - Comma-separated list of tasks to enable
  * @param {string} options.skipTasks - Comma-separated list of tasks to skip

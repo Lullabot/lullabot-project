@@ -3,7 +3,7 @@ import chalk from 'chalk';
 
 /**
  * Prompt user for configuration options.
- * Collects IDE selection, project type, and task preferences from the user.
+ * Collects tool selection, project type, and task preferences from the user.
  * Handles both interactive prompts and command-line options.
  *
  * @param {Object} options - Command line options that may override prompts
@@ -13,57 +13,57 @@ import chalk from 'chalk';
 async function promptUser(options, config) {
   const userConfig = {};
 
-  // Get IDE selection
-  userConfig.ide = await getIdeSelection(options, config);
+  // Get tool selection
+  userConfig.tool = await getToolSelection(options, config);
 
   // Get project type selection
   userConfig.project = await getProjectSelection(options, config);
 
   // Get task preferences
-  const { getTasks } = await import('./ide-config.js');
-  const tasks = getTasks(userConfig.ide, userConfig.project, config);
+  const { getTasks } = await import('./tool-config.js');
+  const tasks = getTasks(userConfig.tool, userConfig.project, config);
   userConfig.taskPreferences = await getTaskPreferences(options, tasks);
 
   return userConfig;
 }
 
 /**
- * Get IDE selection from user or command line options.
- * Validates the IDE against available options and provides interactive selection.
+ * Get tool selection from user or command line options.
+ * Validates the tool against available options and provides interactive selection.
  *
  * @param {Object} options - Command line options
  * @param {Object} config - Full configuration object
- * @returns {Promise<string>} Selected IDE identifier
- * @throws {Error} If IDE is not supported
+ * @returns {Promise<string>} Selected tool identifier
+ * @throws {Error} If tool is not supported
  */
-async function getIdeSelection(options, config) {
-  // If IDE is provided via command line, use it
-  if (options.ide) {
-    if (!config.ides?.[options.ide]) {
+async function getToolSelection(options, config) {
+  // If tool is provided via command line, use it
+  if (options.tool) {
+    if (!config.tools?.[options.tool]) {
       throw new Error(
-        `Unsupported IDE: ${options.ide}. Available IDEs: ${Object.keys(config.ides || {}).join(', ')}`
+        `Unsupported tool: ${options.tool}. Available tools: ${Object.keys(config.tools || {}).join(', ')}`
       );
     }
-    return options.ide;
+    return options.tool;
   }
 
-  // Otherwise, prompt user with available IDE choices
-  const ideChoices = Object.keys(config.ides || {}).map((ideKey) => ({
-    name: config.ides[ideKey].name,
-    value: ideKey
+  // Otherwise, prompt user with available tool choices
+  const toolChoices = Object.keys(config.tools || {}).map((toolKey) => ({
+    name: config.tools[toolKey].name,
+    value: toolKey
   }));
 
-  const { ide } = await inquirer.prompt([
+  const { tool } = await inquirer.prompt([
     {
       type: 'list',
-      name: 'ide',
-      message: 'Which IDE are you using?',
-      choices: ideChoices,
+      name: 'tool',
+      message: 'Which tool are you using?',
+      choices: toolChoices,
       default: 'cursor'
     }
   ]);
 
-  return ide;
+  return tool;
 }
 
 /**
@@ -198,7 +198,7 @@ async function confirmAction(message, defaultAnswer = false) {
  */
 async function confirmSetup(config, tasks) {
   console.log(`\n${chalk.blue('📋 Setup Summary:')}`);
-  console.log(`• IDE: ${chalk.cyan(config.ide)}`);
+  console.log(`• Tool: ${chalk.cyan(config.tool)}`);
   console.log(`• Project Type: ${chalk.cyan(config.project)}`);
 
   // Display enabled tasks

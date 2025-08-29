@@ -3,7 +3,7 @@ import ora from 'ora';
 import path from 'path';
 import fs from 'fs-extra';
 import { promptUser } from './prompts.js';
-import { loadConfig, loadIdeConfig, validateProject } from './ide-config.js';
+import { loadConfig, loadToolConfig, validateProject } from './tool-config.js';
 import {
   executeTask,
   createConfigFile,
@@ -22,7 +22,7 @@ import { isProjectDirectory } from './validation.js';
  * @param {boolean} options.dryRun - Whether to perform a dry run without making changes
  * @param {boolean} options.verbose - Whether to show detailed output
  * @param {boolean} options.skipValidation - Whether to skip project validation
- * @param {string} options.ide - IDE to use (if provided via command line)
+ * @param {string} options.tool - Tool to use (if provided via command line)
  * @param {string} options.project - Project type (if provided via command line)
  * @param {string} options.tasks - Comma-separated list of tasks to enable
  * @param {string} options.skipTasks - Comma-separated list of tasks to skip
@@ -41,12 +41,12 @@ async function initSetup(options) {
       // Get user input (interactive or from options)
       const config = await promptUser(options, fullConfig);
 
-      // Get tasks for the IDE and project type
-      const { getTasks } = await import('./ide-config.js');
-      const tasks = getTasks(config.ide, config.project, fullConfig);
+      // Get tasks for the tool and project type
+      const { getTasks } = await import('./tool-config.js');
+      const tasks = getTasks(config.tool, config.project, fullConfig);
 
       console.log('\n📋 Configuration that would be created:');
-      console.log(`• IDE: ${chalk.cyan(config.ide)}`);
+      console.log(`• Tool: ${chalk.cyan(config.tool)}`);
       console.log(`• Project Type: ${chalk.cyan(config.project)}`);
 
       // Show enabled tasks based on user preferences
@@ -80,10 +80,10 @@ async function initSetup(options) {
           } else if (task.type === 'copy-files') {
             // Replace placeholders in source and target paths
             const source = task.source
-              .replace(/{ide}/g, config.ide)
+              .replace(/{tool}/g, config.tool)
               .replace(/{project-type}/g, config.project);
             const target = task.target
-              .replace(/{ide}/g, config.ide)
+              .replace(/{tool}/g, config.tool)
               .replace(/{project-type}/g, config.project);
 
             // Check if this is a Git-based source for special handling
@@ -122,9 +122,9 @@ async function initSetup(options) {
     // Get user input (interactive or from options)
     const config = await promptUser(options, fullConfig);
 
-    // Get tasks for the IDE and project type
-    const { getTasks } = await import('./ide-config.js');
-    const tasks = getTasks(config.ide, config.project, fullConfig);
+    // Get tasks for the tool and project type
+    const { getTasks } = await import('./tool-config.js');
+    const tasks = getTasks(config.tool, config.project, fullConfig);
 
     if (options.verbose) {
       console.log(chalk.blue('📋 Configuration:'), config);
@@ -140,7 +140,7 @@ async function initSetup(options) {
     // Validate project type if not skipped
     if (!options.skipValidation) {
       spinner.text = 'Validating project type...';
-      await validateProject(config.project, config.ide, fullConfig);
+      await validateProject(config.project, config.tool, fullConfig);
     }
 
     // Execute tasks based on user preferences
@@ -154,7 +154,7 @@ async function initSetup(options) {
         spinner.text = `Executing ${task.name}...`;
         const result = await executeTask(
           task,
-          config.ide,
+          config.tool,
           config.project,
           options.verbose
         );
@@ -173,7 +173,7 @@ async function initSetup(options) {
     // Convert flat config to nested structure for storage
     const nestedConfig = {
       project: {
-        ide: config.ide,
+        tool: config.tool,
         type: config.project
       },
       features: {
@@ -211,7 +211,7 @@ async function initSetup(options) {
  * @param {boolean} options.dryRun - Whether to perform a dry run without making changes
  * @param {boolean} options.verbose - Whether to show detailed output
  * @param {boolean} options.force - Whether to force update even with corrupted config
- * @param {string} options.ide - IDE to use (if provided via command line)
+ * @param {string} options.tool - Tool to use (if provided via command line)
  * @param {string} options.project - Project type (if provided via command line)
  * @param {string} options.tasks - Comma-separated list of tasks to enable
  * @param {string} options.skipTasks - Comma-separated list of tasks to skip
@@ -241,7 +241,7 @@ async function updateSetup(options) {
         options.force &&
         (!existingConfig ||
           !existingConfig.project ||
-          !existingConfig.project.ide)
+          !existingConfig.project.tool)
       ) {
         // Force mode with corrupted config - prompt for new configuration
         console.log(
@@ -255,14 +255,14 @@ async function updateSetup(options) {
       }
 
       // Only apply overrides if explicitly provided
-      if (options.ide) {
-        if (!fullConfig.ides[options.ide]) {
+      if (options.tool) {
+        if (!fullConfig.tools[options.tool]) {
           throw new Error(
-            `Unsupported IDE: ${options.ide}. Available IDEs: ${Object.keys(fullConfig.ides).join(', ')}`
+            `Unsupported tool: ${options.tool}. Available tools: ${Object.keys(fullConfig.tools).join(', ')}`
           );
         }
         if (!config.project) config.project = {};
-        config.project.ide = options.ide;
+        config.project.tool = options.tool;
       }
 
       if (options.project) {
@@ -276,10 +276,10 @@ async function updateSetup(options) {
         config.project.type = options.project;
       }
 
-      // Get tasks for the IDE and project type
-      const { getTasks } = await import('./ide-config.js');
+      // Get tasks for the tool and project type
+      const { getTasks } = await import('./tool-config.js');
       const tasks = getTasks(
-        config.project?.ide || config.ide,
+        config.project?.tool || config.tool,
         config.project?.type || config.project,
         fullConfig
       );
@@ -315,7 +315,7 @@ async function updateSetup(options) {
       // Display current and updated configuration
       console.log('\n📋 Current configuration:');
       console.log(
-        `• IDE: ${chalk.cyan(existingConfig.project?.ide || existingConfig.ide || 'Unknown')}`
+        `• Tool: ${chalk.cyan(existingConfig.project?.tool || existingConfig.tool || 'Unknown')}`
       );
       console.log(
         `• Project Type: ${chalk.cyan(existingConfig.project?.type || existingConfig.project || 'Unknown')}`
@@ -341,7 +341,7 @@ async function updateSetup(options) {
 
       console.log('\n📋 Updated configuration:');
       console.log(
-        `• IDE: ${chalk.cyan(config.project?.ide || config.ide || 'Unknown')}`
+        `• Tool: ${chalk.cyan(config.project?.tool || config.tool || 'Unknown')}`
       );
       console.log(
         `• Project Type: ${chalk.cyan(config.project?.type || config.project || 'Unknown')}`
@@ -377,13 +377,13 @@ async function updateSetup(options) {
             console.log(`  Command: ${task.package['install-command']}`);
           } else if (task.type === 'copy-files') {
             const source = task.source
-              .replace(/{ide}/g, config.project?.ide || config.ide)
+              .replace(/{tool}/g, config.project?.tool || config.tool)
               .replace(
                 /{project-type}/g,
                 config.project?.type || config.project
               );
             const target = task.target
-              .replace(/{ide}/g, config.project?.ide || config.ide)
+              .replace(/{tool}/g, config.project?.tool || config.tool)
               .replace(
                 /{project-type}/g,
                 config.project?.type || config.project
@@ -433,7 +433,7 @@ async function updateSetup(options) {
       options.force &&
       (!existingConfig ||
         !existingConfig.project ||
-        !existingConfig.project.ide)
+        !existingConfig.project.tool)
     ) {
       // Force mode with corrupted config - prompt for new configuration
       spinner.stop();
@@ -447,7 +447,7 @@ async function updateSetup(options) {
       // Convert flat config to nested structure
       config = {
         project: {
-          ide: flatConfig.ide,
+          tool: flatConfig.tool,
           type: flatConfig.project
         },
         features: {
@@ -469,14 +469,14 @@ async function updateSetup(options) {
     }
 
     // Only apply overrides if explicitly provided
-    if (options.ide) {
-      if (!fullConfig.ides[options.ide]) {
+    if (options.tool) {
+      if (!fullConfig.tools[options.tool]) {
         throw new Error(
-          `Unsupported IDE: ${options.ide}. Available IDEs: ${Object.keys(fullConfig.ides).join(', ')}`
+          `Unsupported tool: ${options.tool}. Available tools: ${Object.keys(fullConfig.tools).join(', ')}`
         );
       }
       if (!config.project) config.project = {};
-      config.project.ide = options.ide;
+      config.project.tool = options.tool;
     }
 
     if (options.project) {
@@ -493,15 +493,15 @@ async function updateSetup(options) {
     // Ensure config has the correct structure for the rest of the function
     if (!config.project) {
       config.project = {
-        ide: config.ide,
+        tool: config.tool,
         type: config.project
       };
     }
 
-    // Get tasks for the IDE and project type
-    const { getTasks } = await import('./ide-config.js');
+    // Get tasks for the tool and project type
+    const { getTasks } = await import('./tool-config.js');
     const tasks = getTasks(
-      config.project?.ide || config.ide,
+      config.project?.tool || config.tool,
       config.project?.type || config.project,
       fullConfig
     );
@@ -550,7 +550,7 @@ async function updateSetup(options) {
         spinner.text = `Executing ${task.name}...`;
         const result = await executeTask(
           task,
-          config.project?.ide || config.ide,
+          config.project?.tool || config.tool,
           config.project?.type || config.project,
           options.verbose
         );
@@ -625,8 +625,8 @@ async function checkForUpdates(config, options) {
   console.log(chalk.blue('\n🔍 Checking for updates...'));
 
   try {
-    // Load IDE configuration
-    const ideConfig = await loadIdeConfig();
+    // Load tool configuration
+    const toolConfig = await loadToolConfig();
 
     const updates = [];
 
@@ -651,12 +651,12 @@ async function checkForUpdates(config, options) {
           const taskPackage = config.packages?.[taskId];
           if (taskPackage && taskPackage.version !== 'unknown') {
             try {
-              // Get the IDE to find the package configuration
-              const ide = config.project?.ide || config.ide;
+              // Get the tool to find the package configuration
+              const tool = config.project?.tool || config.tool;
 
-              // Get the full package configuration from the IDE config
-              const ideSettings = ideConfig.ides[ide];
-              const task = ideSettings?.tasks?.[taskId];
+              // Get the full package configuration from the tool config
+              const toolSettings = toolConfig.tools[tool];
+              const task = toolSettings?.tasks?.[taskId];
               const packageConfig = task?.package;
 
               if (packageConfig) {
@@ -735,7 +735,7 @@ function displaySuccessSummary(config, tasks) {
   console.log(`\n${chalk.green('✅ Setup completed successfully!')}`);
   console.log('\n📋 Summary:');
   console.log(
-    `• IDE: ${chalk.cyan(config.project?.ide || config.ide || 'Unknown')}`
+    `• Tool: ${chalk.cyan(config.project?.tool || config.tool || 'Unknown')}`
   );
   console.log(
     `• Project Type: ${chalk.cyan(config.project?.type || config.project || 'Unknown')}`
@@ -762,10 +762,10 @@ function displaySuccessSummary(config, tasks) {
     console.log('\n📁 Files copied to:');
     copyTasks.forEach(([_, task]) => {
       const source = task.source
-        .replace(/{ide}/g, config.project?.ide || config.ide)
+        .replace(/{tool}/g, config.project?.tool || config.tool)
         .replace(/{project-type}/g, config.project?.type || config.project);
       const target = task.target
-        .replace(/{ide}/g, config.project?.ide || config.ide)
+        .replace(/{tool}/g, config.project?.tool || config.tool)
         .replace(/{project-type}/g, config.project?.type || config.project);
 
       if (source.startsWith('assets/')) {
@@ -793,7 +793,7 @@ function displayUpdateSummary(config, tasks) {
   console.log(`\n${chalk.green('✅ Update completed successfully!')}`);
   console.log('\n📋 Updated:');
   console.log(
-    `• IDE: ${chalk.cyan(config.project?.ide || config.ide || 'Unknown')}`
+    `• Tool: ${chalk.cyan(config.project?.tool || config.tool || 'Unknown')}`
   );
   console.log(
     `• Project Type: ${chalk.cyan(config.project?.type || 'Unknown')}`
@@ -832,7 +832,7 @@ function displayConfig(config, options) {
     const jsonOutput = {
       project: {
         type: config.project?.type || config.project,
-        ide: config.project?.ide || config.ide
+        tool: config.project?.tool || config.tool
       },
       features: {
         taskPreferences:
@@ -855,7 +855,7 @@ function displayConfig(config, options) {
   console.log('\n📋 Lullabot Project Configuration');
   console.log('─'.repeat(50));
 
-  console.log(`\n💻 IDE: ${chalk.cyan(config.project?.ide || config.ide)}`);
+  console.log(`\n💻 Tool: ${chalk.cyan(config.project?.tool || config.tool)}`);
   console.log(
     `📦 Project Type: ${chalk.cyan(config.project?.type || config.project)}`
   );
@@ -939,8 +939,8 @@ async function removeSetup(options) {
       // Configuration file
       console.log('• Configuration file: .lullabot-project.yml');
 
-      // IDE-specific files based on configuration
-      if (existingConfig.project?.ide) {
+      // Tool-specific files based on configuration
+      if (existingConfig.project?.tool) {
         // Show copied files from all copy-files tasks
         if (existingConfig.features?.taskPreferences && existingConfig.files) {
           const copyTasks = Object.entries(
@@ -1004,8 +1004,8 @@ async function removeSetup(options) {
       }
     }
 
-    // Remove IDE-specific files
-    if (existingConfig.project?.ide) {
+    // Remove tool-specific files
+    if (existingConfig.project?.tool) {
       // Remove specific files that were created by the tool
       if (existingConfig.features?.taskPreferences && existingConfig.files) {
         for (const filePath of existingConfig.files) {
