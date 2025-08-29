@@ -3,7 +3,12 @@ import path from 'path';
 import chalk from 'chalk';
 
 /**
- * Validate current directory for common project indicators
+ * Validate current directory for common project indicators.
+ * Checks for typical files and directories that indicate a project structure.
+ * Returns information about what was found and what was missing.
+ *
+ * @param {boolean} verbose - Whether to show detailed output
+ * @returns {Promise<Object>} Validation result with found/missing indicators
  */
 async function validateDirectory(verbose = false) {
   const currentDir = process.cwd();
@@ -18,6 +23,7 @@ async function validateDirectory(verbose = false) {
   const found = [];
   const missing = [];
 
+  // Check each indicator file/directory
   for (const indicator of indicators) {
     const indicatorPath = path.join(currentDir, indicator);
     if (await fs.pathExists(indicatorPath)) {
@@ -41,31 +47,54 @@ async function validateDirectory(verbose = false) {
 }
 
 /**
- * Check if directory appears to be a valid project
+ * Check if directory appears to be a valid project.
+ * Validates the current directory and provides warnings if it doesn't look like a project.
+ * Returns true if at least one project indicator is found.
+ *
+ * @param {boolean} verbose - Whether to show detailed output
+ * @returns {Promise<boolean>} True if directory appears to be a valid project
  */
 async function isProjectDirectory(verbose = false) {
   const validation = await validateDirectory(verbose);
 
   if (!validation.isValid) {
-    console.log(chalk.yellow('\n⚠️  Warning: This directory doesn\'t appear to be a project directory.'));
-    console.log(chalk.yellow('   Expected to find at least one of: package.json, composer.json, .git, README.md'));
-    console.log(chalk.yellow('   You can continue, but some features may not work as expected.'));
+    console.log(
+      chalk.yellow(
+        "\n⚠️  Warning: This directory doesn't appear to be a project directory."
+      )
+    );
+    console.log(
+      chalk.yellow(
+        '   Expected to find at least one of: package.json, composer.json, .git, README.md'
+      )
+    );
+    console.log(
+      chalk.yellow(
+        '   You can continue, but some features may not work as expected.'
+      )
+    );
   }
 
   return validation.isValid;
 }
 
 /**
- * Validate file exists and is readable
+ * Validate file exists and is readable.
+ * Checks if the specified file exists and can be read by the current user.
+ *
+ * @param {string} filePath - Path to the file to validate
+ * @param {string} description - Human-readable description of the file for error messages
+ * @returns {Promise<boolean>} True if file exists and is readable
+ * @throws {Error} If file doesn't exist or is not readable
  */
 async function validateFile(filePath, description = 'file') {
-  if (!await fs.pathExists(filePath)) {
+  if (!(await fs.pathExists(filePath))) {
     throw new Error(`${description} not found: ${filePath}`);
   }
 
   try {
     await fs.access(filePath, fs.constants.R_OK);
-  } catch (error) {
+  } catch (_error) {
     throw new Error(`${description} not readable: ${filePath}`);
   }
 
@@ -73,20 +102,26 @@ async function validateFile(filePath, description = 'file') {
 }
 
 /**
- * Validate directory exists and is writable
+ * Validate directory exists and is writable.
+ * Checks if the specified directory exists (creates it if it doesn't) and is writable.
+ *
+ * @param {string} dirPath - Path to the directory to validate
+ * @param {string} description - Human-readable description of the directory for error messages
+ * @returns {Promise<boolean>} True if directory exists and is writable
+ * @throws {Error} If directory cannot be created or is not writable
  */
 async function validateDirectoryWritable(dirPath, description = 'directory') {
-  if (!await fs.pathExists(dirPath)) {
+  if (!(await fs.pathExists(dirPath))) {
     try {
       await fs.ensureDir(dirPath);
-    } catch (error) {
+    } catch (_error) {
       throw new Error(`Cannot create ${description}: ${dirPath}`);
     }
   }
 
   try {
     await fs.access(dirPath, fs.constants.W_OK);
-  } catch (error) {
+  } catch (_error) {
     throw new Error(`${description} not writable: ${dirPath}`);
   }
 
@@ -94,14 +129,27 @@ async function validateDirectoryWritable(dirPath, description = 'directory') {
 }
 
 /**
- * Check if a file contains specific content
+ * Check if a file contains specific content.
+ * Validates that the file exists and contains the required content string.
+ *
+ * @param {string} filePath - Path to the file to check
+ * @param {string} requiredContent - Content that must be present in the file
+ * @param {string} description - Human-readable description of the file for error messages
+ * @returns {Promise<boolean>} True if file contains the required content
+ * @throws {Error} If file doesn't exist or doesn't contain required content
  */
-async function validateFileContent(filePath, requiredContent, description = 'file') {
+async function validateFileContent(
+  filePath,
+  requiredContent,
+  description = 'file'
+) {
   await validateFile(filePath, description);
 
   const content = await fs.readFile(filePath, 'utf8');
   if (!content.includes(requiredContent)) {
-    throw new Error(`Required content not found in ${description}: ${requiredContent}`);
+    throw new Error(
+      `Required content not found in ${description}: ${requiredContent}`
+    );
   }
 
   return true;

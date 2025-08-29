@@ -4,7 +4,11 @@ import yaml from 'js-yaml';
 import chalk from 'chalk';
 
 /**
- * Load configuration from YAML file
+ * Load configuration from YAML file.
+ * Reads the main configuration file that contains IDE and project definitions.
+ *
+ * @returns {Promise<Object>} Parsed configuration object
+ * @throws {Error} If configuration file cannot be loaded or parsed
  */
 async function loadConfig() {
   try {
@@ -19,7 +23,10 @@ async function loadConfig() {
 }
 
 /**
- * Load IDE configuration from YAML file (backward compatibility)
+ * Load IDE configuration from YAML file (backward compatibility).
+ * Returns a simplified structure for legacy code that expects only IDE settings.
+ *
+ * @returns {Promise<Object>} Object containing IDE configurations
  */
 async function loadIdeConfig() {
   const config = await loadConfig();
@@ -27,7 +34,14 @@ async function loadIdeConfig() {
 }
 
 /**
- * Validate project type against current directory
+ * Validate project type against current directory.
+ * Checks for required files and content to ensure the current directory
+ * is a valid project of the specified type.
+ *
+ * @param {string} projectType - The project type to validate
+ * @param {string} ide - The IDE identifier
+ * @param {Object} config - Full configuration object
+ * @throws {Error} If project validation fails
  */
 async function validateProject(projectType, ide, config) {
   const ideSettings = config.ides[ide];
@@ -52,7 +66,7 @@ async function validateProject(projectType, ide, config) {
   if (projectValidation.requiredFiles) {
     for (const file of projectValidation.requiredFiles) {
       const filePath = path.join(currentDir, file);
-      if (!await fs.pathExists(filePath)) {
+      if (!(await fs.pathExists(filePath))) {
         issues.push(`Missing required file: ${file}`);
       }
     }
@@ -60,7 +74,9 @@ async function validateProject(projectType, ide, config) {
 
   // Check required content in files
   if (projectValidation.requiredContent) {
-    for (const [file, content] of Object.entries(projectValidation.requiredContent)) {
+    for (const [file, content] of Object.entries(
+      projectValidation.requiredContent
+    )) {
       const filePath = path.join(currentDir, file);
       if (await fs.pathExists(filePath)) {
         const fileContent = await fs.readFile(filePath, 'utf8');
@@ -78,7 +94,7 @@ async function validateProject(projectType, ide, config) {
   if (projectValidation.optionalFiles) {
     for (const file of projectValidation.optionalFiles) {
       const filePath = path.join(currentDir, file);
-      if (!await fs.pathExists(filePath)) {
+      if (!(await fs.pathExists(filePath))) {
         warnings.push(`Optional file not found: ${file}`);
       }
     }
@@ -87,7 +103,7 @@ async function validateProject(projectType, ide, config) {
   // Display warnings if any
   if (warnings.length > 0) {
     console.log(chalk.yellow('\n⚠️  Warnings:'));
-    warnings.forEach(warning => {
+    warnings.forEach((warning) => {
       console.log(chalk.yellow(`  • ${warning}`));
     });
   }
@@ -95,17 +111,25 @@ async function validateProject(projectType, ide, config) {
   // Throw error if there are critical issues
   if (issues.length > 0) {
     console.log(chalk.red('\n❌ Project validation failed:'));
-    issues.forEach(issue => {
+    issues.forEach((issue) => {
       console.log(chalk.red(`  • ${issue}`));
     });
-    throw new Error(`Project validation failed. This doesn't appear to be a valid ${projectType} project.`);
+    throw new Error(
+      `Project validation failed. This doesn't appear to be a valid ${projectType} project.`
+    );
   }
 
   console.log(chalk.green(`✅ Project validation passed for ${projectType}`));
 }
 
 /**
- * Get IDE settings for a specific IDE
+ * Get IDE settings for a specific IDE.
+ * Returns the configuration object for the specified IDE.
+ *
+ * @param {string} ide - The IDE identifier
+ * @param {Object} ideConfig - IDE configuration object
+ * @returns {Object} IDE settings object
+ * @throws {Error} If IDE configuration is not found
  */
 function getIdeSettings(ide, ideConfig) {
   const settings = ideConfig.ides[ide];
@@ -116,18 +140,76 @@ function getIdeSettings(ide, ideConfig) {
 }
 
 /**
- * Get available IDEs
+ * Get available IDEs from the configuration.
+ * Returns an array of IDE identifiers that are configured.
+ *
+ * @param {Object} ideConfig - IDE configuration object
+ * @returns {string[]} Array of available IDE identifiers
  */
 function getAvailableIdes(ideConfig) {
   return Object.keys(ideConfig.ides);
 }
 
 /**
- * Get available project types for an IDE
+ * Get available project types for an IDE.
+ * Returns an array of project types that are supported by the specified IDE.
+ *
+ * @param {string} ide - The IDE identifier
+ * @param {Object} ideConfig - IDE configuration object
+ * @returns {string[]} Array of available project type identifiers
  */
 function getAvailableProjectTypes(ide, ideConfig) {
   const ideSettings = getIdeSettings(ide, ideConfig);
   return Object.keys(ideSettings['project-validation'] || {});
+}
+
+/**
+ * Get tasks for the given IDE and project type.
+ * Combines IDE-specific tasks and project-specific tasks into a single object.
+ * Each task is marked with its source (ide or project) for tracking.
+ *
+ * @param {string} ide - The IDE identifier
+ * @param {string} projectType - The project type
+ * @param {Object} config - Full configuration object
+ * @returns {Object} Object containing all available tasks
+ * @throws {Error} If IDE or project configuration is not found
+ */
+function getTasks(ide, projectType, config) {
+  const ideSettings = config.ides[ide];
+  if (!ideSettings) {
+    throw new Error(`IDE configuration not found for: ${ide}`);
+  }
+
+  const projectConfig = config.projects[projectType];
+  if (!projectConfig) {
+    throw new Error(`Project configuration not found for: ${projectType}`);
+  }
+
+  const tasks = {};
+
+  // Add IDE tasks
+  if (ideSettings.tasks) {
+    for (const [taskId, task] of Object.entries(ideSettings.tasks)) {
+      tasks[taskId] = {
+        ...task,
+        id: taskId,
+        taskSource: 'ide'
+      };
+    }
+  }
+
+  // Add project tasks (if any)
+  if (projectConfig.tasks) {
+    for (const [taskId, task] of Object.entries(projectConfig.tasks)) {
+      tasks[taskId] = {
+        ...task,
+        id: taskId,
+        taskSource: 'project'
+      };
+    }
+  }
+
+  return tasks;
 }
 
 export {
@@ -136,5 +218,6 @@ export {
   validateProject,
   getIdeSettings,
   getAvailableIdes,
-  getAvailableProjectTypes
+  getAvailableProjectTypes,
+  getTasks
 };

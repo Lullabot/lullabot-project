@@ -3,108 +3,164 @@ import path from 'path';
 import { execSync } from 'child_process';
 import yaml from 'js-yaml';
 import chalk from 'chalk';
+import { getFilesFromGit } from './git-operations.js';
 
 /**
- * Copy project rules to the appropriate location
+ * Get the current tool version from package.json.
+ * Returns the version from the package.json file or defaults to '1.0.0' if not available.
+ *
+ * @returns {string} The tool version
  */
-async function copyRules(ide, projectType, ideConfig, verbose = false, isUpdate = false) {
-  const ideSettings = ideConfig.ides[ide];
-  // Infer rules path from IDE key (e.g., "cursor" -> ".cursor/rules")
-  const rulesPath = `.${ide}/rules`;
-  const targetDir = path.join(process.cwd(), rulesPath);
+function getToolVersion() {
+  try {
+    const packagePath = path.join(process.cwd(), 'package.json');
+    if (fs.existsSync(packagePath)) {
+      const packageData = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+      return packageData.version || '1.0.0';
+    }
+  } catch (error) {
+    // If we can't read the package.json, fall back to default
+    if (process.env.NODE_ENV === 'development') {
+      console.warn(
+        chalk.yellow(
+          `Warning: Could not read package.json version, using default.${error.message}`
+        )
+      );
+    }
+  }
+  return '1.0.0';
+}
 
-  // Source directory for rules
-  const toolDir = path.dirname(new URL(import.meta.url).pathname);
-  const sourceDir = path.join(toolDir, '..', 'rules', ide, projectType);
+/**
+ * Copy files from Git repository to the appropriate location.
+ * This function handles copying files from the Git repository using the source path
+ * specified in the task configuration.
+ *
+ * @param {string} sourcePath - Source path in the repository (from task config)
+ * @param {string} targetPath - Target path where files should be copied
+ * @param {boolean} verbose - Whether to show detailed output
+ * @returns {Promise<string[]>} Array of copied file paths
+ */
+async function copyFilesFromGit(sourcePath, targetPath, verbose = false) {
+  if (verbose) {
+    console.log(
+      chalk.gray(`  Copying files from Git: ${sourcePath} to ${targetPath}...`)
+    );
+  }
 
-  if (!await fs.pathExists(sourceDir)) {
-    throw new Error(`Rules not found for ${ide}/${projectType}`);
+  try {
+    // Use Git operations to get files from the repository
+    await getFilesFromGit(sourcePath, targetPath, verbose);
+
+    // Get list of copied files for tracking
+    const copiedFiles = [];
+    if (await fs.pathExists(targetPath)) {
+      const files = await fs.readdir(targetPath);
+      copiedFiles.push(
+        ...files.map((file) =>
+          path.relative(process.cwd(), path.join(targetPath, file))
+        )
+      );
+    }
+
+    if (verbose) {
+      console.log(chalk.green(`✅ Copied files to ${targetPath}`));
+    }
+
+    return copiedFiles;
+  } catch (error) {
+    throw new Error(`Failed to copy files from Git: ${error.message}`);
+  }
+}
+
+/**
+ * Copy files from a source directory to a target directory.
+ * This is a generic function for copying any files from the local filesystem.
+ * Supports copying specific items or all files in the source directory.
+ *
+ * @param {string} sourceDir - Source directory path
+ * @param {string} targetDir - Target directory path
+ * @param {boolean} verbose - Whether to show detailed output
+ * @param {string[]} items - Optional array of specific items to copy
+ * @returns {Promise<string[]>} Array of copied file paths
+ */
+async function copyFiles(sourceDir, targetDir, verbose = false, items = null) {
+  if (!(await fs.pathExists(sourceDir))) {
+    throw new Error(`Source directory not found: ${sourceDir}`);
   }
 
   // Create target directory if it doesn't exist
   await fs.ensureDir(targetDir);
 
-  // Copy all files from source to target
-  const files = await fs.readdir(sourceDir);
+  // Determine what to copy
+  let itemsToCopy = [];
+
+  if (items && Array.isArray(items) && items.length > 0) {
+    // Copy only specified items
+    itemsToCopy = items;
+  } else {
+    // Copy all files and directories
+    const allItems = await fs.readdir(sourceDir);
+    itemsToCopy = allItems;
+  }
+
   const copiedFiles = [];
 
-  for (const file of files) {
-    const sourceFile = path.join(sourceDir, file);
-    const targetFile = path.join(targetDir, file);
+  // Copy each item from source to target
+  for (const item of itemsToCopy) {
+    const sourceItem = path.join(sourceDir, item);
+    const targetItem = path.join(targetDir, item);
 
-    if (verbose) {
-      console.log(chalk.gray(`  Copying: ${file}`));
+    // Check if the item exists in the source directory
+    if (!(await fs.pathExists(sourceItem))) {
+      if (verbose) {
+        console.log(
+          chalk.yellow(`  Warning: ${item} not found in source directory`)
+        );
+      }
+      continue;
     }
 
-    await fs.copy(sourceFile, targetFile);
-    copiedFiles.push(path.join(rulesPath, file));
+    if (verbose) {
+      console.log(chalk.gray(`  Copying: ${item}`));
+    }
+
+    await fs.copy(sourceItem, targetItem);
+    copiedFiles.push(path.relative(process.cwd(), targetItem));
   }
 
   if (verbose) {
-    console.log(chalk.green(`✅ Copied ${copiedFiles.length} rule files to ${targetDir}`));
+    console.log(
+      chalk.green(`✅ Copied ${copiedFiles.length} items to ${targetDir}`)
+    );
   }
 
   return copiedFiles;
 }
 
 /**
- * Execute memory bank setup command
- */
-async function executeMemoryBank(ide, ideConfig, verbose = false) {
-  const ideSettings = ideConfig.ides[ide];
-  const command = ideSettings['memory-bank-command'];
-
-  if (!command) {
-    throw new Error(`Memory bank command not configured for ${ide}`);
-  }
-
-  if (verbose) {
-    console.log(chalk.gray(`  Executing: ${command}`));
-  }
-
-  try {
-    const output = execSync(command, {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-      stdio: verbose ? 'inherit' : 'pipe'
-    });
-
-    if (verbose) {
-      console.log(chalk.green(`✅ Memory bank setup completed`));
-    }
-
-    // Extract package name from command (e.g., "npx cursor-bank init" -> "cursor-bank")
-    const packageName = command.split(' ')[1];
-
-    // Get package version information
-    const packageInfo = await getPackageVersion(packageName, verbose);
-
-    return {
-      output,
-      packageInfo
-    };
-  } catch (error) {
-    throw new Error(`Memory bank setup failed: ${error.message}`);
-  }
-}
-
-/**
- * Create configuration file
+ * Create configuration file with the provided configuration data.
+ * Converts the configuration object to YAML format and writes it to disk.
+ *
+ * @param {Object} config - Configuration object to save
+ * @param {boolean} verbose - Whether to show detailed output
+ * @returns {Promise<string>} Path to the created configuration file
  */
 async function createConfigFile(config, verbose = false) {
+  // Normalize configuration structure for storage
   const configData = {
     project: {
       type: config.project?.type || config.project,
       ide: config.project?.ide || config.ide
     },
     features: {
-      memoryBank: config.features?.memoryBank || config.memoryBank,
-      rules: config.features?.rules || config.rules
+      taskPreferences:
+        config.features?.taskPreferences || config.taskPreferences
     },
     installation: {
       created: config.installation?.created || new Date().toISOString(),
       updated: new Date().toISOString(),
-      toolVersion: '1.0.0'
+      toolVersion: getToolVersion()
     },
     files: config.files || [],
     packages: config.packages || {}
@@ -116,22 +172,26 @@ async function createConfigFile(config, verbose = false) {
     console.log(chalk.gray(`  Creating configuration file: ${configPath}`));
   }
 
+  // Write configuration to YAML file
   await fs.writeFile(configPath, yaml.dump(configData, { indent: 2 }));
 
   if (verbose) {
-    console.log(chalk.green(`✅ Configuration file created`));
+    console.log(chalk.green('✅ Configuration file created'));
   }
 
   return configPath;
 }
 
 /**
- * Read configuration file
+ * Read configuration file from disk and parse YAML content.
+ * Returns null if the configuration file doesn't exist.
+ *
+ * @returns {Promise<Object|null>} Parsed configuration object or null if not found
  */
 async function readConfigFile() {
   const configPath = path.join(process.cwd(), '.lullabot-project.yml');
 
-  if (!await fs.pathExists(configPath)) {
+  if (!(await fs.pathExists(configPath))) {
     return null;
   }
 
@@ -144,7 +204,12 @@ async function readConfigFile() {
 }
 
 /**
- * Update configuration file with new data
+ * Update configuration file with new data while preserving existing values.
+ * Merges the new configuration with the existing one and updates timestamps.
+ *
+ * @param {Object} config - New configuration data to merge
+ * @param {boolean} verbose - Whether to show detailed output
+ * @returns {Promise<string>} Path to the updated configuration file
  */
 async function updateConfigFile(config, verbose = false) {
   const existingConfig = await readConfigFile();
@@ -171,14 +236,16 @@ async function updateConfigFile(config, verbose = false) {
   await fs.writeFile(configPath, yaml.dump(updatedConfig, { indent: 2 }));
 
   if (verbose) {
-    console.log(chalk.green(`✅ Configuration file updated`));
+    console.log(chalk.green('✅ Configuration file updated'));
   }
 
   return configPath;
 }
 
 /**
- * Check if configuration file exists
+ * Check if configuration file exists in the current directory.
+ *
+ * @returns {Promise<boolean>} True if configuration file exists, false otherwise
  */
 async function configExists() {
   const configPath = path.join(process.cwd(), '.lullabot-project.yml');
@@ -186,61 +253,261 @@ async function configExists() {
 }
 
 /**
- * Get list of files created by the tool
+ * Get list of files created by the tool based on configuration.
+ * Returns the files that were copied during setup, stored in config.files.
+ *
+ * @param {Object} config - Configuration object
+ * @returns {Promise<string[]>} Array of file paths that were created
  */
 async function getCreatedFiles(config) {
-  const files = [];
-
-  if (config.features?.rules) {
-    const ideSettings = await loadIdeConfig();
-    const rulesPath = ideSettings.ides[config.project.ide].rulesPath;
-    const rulesDir = path.join(process.cwd(), rulesPath, config.project.type);
-
-    if (await fs.pathExists(rulesDir)) {
-      const ruleFiles = await fs.readdir(rulesDir);
-      ruleFiles.forEach(file => {
-        files.push(path.join(rulesPath, config.project.type, file));
-      });
-    }
-  }
-
-  return files;
+  // Return the files that were copied during setup
+  return config.files || [];
 }
 
 /**
- * Get package version information
+ * Execute a task based on its type and configuration.
+ * Routes to the appropriate execution function based on task type.
+ *
+ * @param {Object} task - Task configuration object
+ * @param {string} ide - The IDE identifier
+ * @param {string} projectType - The project type
+ * @param {boolean} verbose - Whether to show detailed output
+ * @returns {Promise<Object>} Task execution result
  */
-async function getPackageVersion(packageName, verbose = false) {
+async function executeTask(task, ide, projectType, verbose = false) {
+  const taskId = task.id;
+
+  if (verbose) {
+    console.log(chalk.gray(`Executing task: ${task.name}`));
+  }
+
   try {
+    // Route to appropriate execution function based on task type
+    switch (task.type) {
+      case 'command':
+        return await executeCommandTask(task, verbose);
+      case 'copy-files':
+        return await executeCopyFilesTask(task, ide, projectType, verbose);
+      case 'package-install':
+        return await executePackageInstallTask(task, verbose);
+      default:
+        throw new Error(`Unknown task type: ${task.type}`);
+    }
+  } catch (error) {
+    throw new Error(`Task '${taskId}' failed: ${error.message}`);
+  }
+}
+
+/**
+ * Execute a command task by running the specified shell command.
+ * Extracts package information if the command is an npx command.
+ *
+ * @param {Object} task - Task configuration object
+ * @param {boolean} verbose - Whether to show detailed output
+ * @returns {Promise<Object>} Command execution result with output and package info
+ */
+async function executeCommandTask(task, verbose = false) {
+  const command = task.command;
+
+  if (verbose) {
+    console.log(chalk.gray(`Executing command: ${command}`));
+  }
+
+  try {
+    // Execute the shell command
+    const output = execSync(command, {
+      encoding: 'utf8',
+      stdio: verbose ? 'inherit' : 'pipe'
+    });
+
     if (verbose) {
-      console.log(chalk.gray(`  Checking version for: ${packageName}`));
+      console.log(chalk.gray('Command completed successfully'));
     }
 
-    // Try to get version using npx
-    const command = `npx ${packageName} --version`;
+    // Extract package info for version tracking if it's an npx command
+    const packageName = command.includes('npx') ? command.split(' ')[1] : null;
+    const packageInfo = packageName
+      ? await getPackageVersion(packageName, false)
+      : null;
+
+    return {
+      output: output || 'Command executed successfully',
+      packageInfo
+    };
+  } catch (error) {
+    throw new Error(`Command failed: ${error.message}`);
+  }
+}
+
+/**
+ * Execute a copy-files task by copying files from source to target.
+ * Determines whether to use Git operations or local filesystem based on the source path.
+ *
+ * @param {Object} task - Task configuration object
+ * @param {string} ide - The IDE identifier
+ * @param {string} projectType - The project type
+ * @param {boolean} verbose - Whether to show detailed output
+ * @returns {Promise<string[]>} Array of copied file paths
+ */
+async function executeCopyFilesTask(task, ide, projectType, verbose = false) {
+  // Replace placeholders in source and target paths
+  const source = task.source
+    .replace('{ide}', ide)
+    .replace('{project-type}', projectType);
+  const target = task.target.replace('{project-type}', projectType);
+
+  if (verbose) {
+    console.log(chalk.gray(`Copying files from ${source} to ${target}`));
+  }
+
+  // Check if this is a Git-based source (starts with assets/)
+  if (source.startsWith('assets/')) {
+    // Use Git for files from the repository
+    return await copyFilesFromGit(source, target, verbose);
+  } else {
+    // Use local file system for other files
+    const toolDir = path.dirname(new URL(import.meta.url).pathname);
+    const fullSourcePath = path.join(toolDir, '..', source);
+    const items = task.items || null;
+
+    return await copyFiles(fullSourcePath, target, verbose, items);
+  }
+}
+
+/**
+ * Execute a package installation task by running the install command.
+ * Gets package version information after installation.
+ *
+ * @param {Object} task - Task configuration object
+ * @param {boolean} verbose - Whether to show detailed output
+ * @returns {Promise<Object>} Installation result with output and package info
+ */
+async function executePackageInstallTask(task, verbose = false) {
+  const { package: pkg } = task;
+
+  if (verbose) {
+    console.log(chalk.gray(`Installing package: ${pkg.name}`));
+    console.log(chalk.gray(`Install command: ${pkg['install-command']}`));
+  }
+
+  try {
+    // Execute install command
+    const installOutput = execSync(pkg['install-command'], {
+      encoding: 'utf8',
+      stdio: verbose ? 'inherit' : 'pipe'
+    });
+
+    // Get package version
+    const packageInfo = await getPackageVersion(pkg, verbose);
+
+    return {
+      output: installOutput || 'Package installed successfully',
+      packageInfo
+    };
+  } catch (error) {
+    throw new Error(`Package installation failed: ${error.message}`);
+  }
+}
+
+/**
+ * Get the default version command for a package based on its type.
+ * Returns the appropriate command to check package version.
+ *
+ * @param {string} packageName - Name of the package
+ * @param {string} type - Package type (npx, npm, yarn, pnpm)
+ * @returns {string} Version command to execute
+ */
+function getDefaultVersionCommand(packageName, type) {
+  switch (type) {
+    case 'npx':
+      return `npx ${packageName} --version`;
+    case 'npm':
+      return `npm list ${packageName}`;
+    case 'yarn':
+      return `yarn list ${packageName}`;
+    case 'pnpm':
+      return `pnpm list ${packageName}`;
+    default:
+      return `${packageName} --version`;
+  }
+}
+
+/**
+ * Parse version from command output based on package type.
+ * Handles different output formats from various package managers.
+ *
+ * @param {string} output - Raw command output
+ * @param {string} type - Package type (npx, npm, yarn, pnpm)
+ * @returns {string} Extracted version string
+ */
+function parseVersionFromOutput(output, type) {
+  switch (type) {
+    case 'npm':
+    case 'yarn':
+    case 'pnpm': {
+      // Parse "└── package@version" format
+      const match = output.match(/└── [^@]+@([^\s]+)/);
+      return match ? match[1] : 'unknown';
+    }
+    default:
+      // For npx and custom, assume direct version output
+      return output.trim();
+  }
+}
+
+/**
+ * Get package version information by executing version command.
+ * Handles both string package names and package configuration objects.
+ *
+ * @param {string|Object} packageConfig - Package name or configuration object
+ * @param {boolean} verbose - Whether to show detailed output
+ * @returns {Promise<Object>} Package information including name, version, and metadata
+ */
+async function getPackageVersion(packageConfig, verbose = false) {
+  // Handle case where packageConfig is just a string (package name)
+  if (typeof packageConfig === 'string') {
+    packageConfig = { name: packageConfig, type: 'npx' };
+  }
+
+  const { name, type = 'npx' } = packageConfig;
+  // Handle both camelCase and kebab-case property names
+  const versionCommand =
+    packageConfig.versionCommand || packageConfig['version-command'];
+
+  try {
+    if (verbose) {
+      console.log(chalk.gray(`  Checking version for: ${name} (${type})`));
+    }
+
+    // Use custom version command if provided, otherwise use type-based defaults
+    const command = versionCommand || getDefaultVersionCommand(name, type);
+
     const output = execSync(command, {
       cwd: process.cwd(),
       encoding: 'utf8',
       stdio: verbose ? 'inherit' : 'pipe',
-      timeout: 10000 // 10 second timeout
+      timeout: 10000
     });
 
-    const version = output.trim();
+    const version = parseVersionFromOutput(output, type);
+
     if (verbose) {
       console.log(chalk.gray(`  Found version: ${version}`));
     }
 
     return {
-      name: packageName,
-      version: version,
+      name,
+      version,
       lastUpdated: new Date().toISOString()
     };
   } catch (error) {
     if (verbose) {
-      console.log(chalk.gray(`  Could not get version for ${packageName}: ${error.message}`));
+      console.log(
+        chalk.gray(`  Could not get version for ${name}: ${error.message}`)
+      );
     }
     return {
-      name: packageName,
+      name,
       version: 'unknown',
       lastUpdated: new Date().toISOString(),
       error: error.message
@@ -249,12 +516,14 @@ async function getPackageVersion(packageName, verbose = false) {
 }
 
 export {
-  copyRules,
-  executeMemoryBank,
+  copyFiles,
+  copyFilesFromGit,
+  executeTask,
   createConfigFile,
   readConfigFile,
   updateConfigFile,
   configExists,
   getCreatedFiles,
-  getPackageVersion
+  getPackageVersion,
+  getToolVersion
 };

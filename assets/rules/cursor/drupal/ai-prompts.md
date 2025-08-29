@@ -3,6 +3,7 @@
 ## General Development Prompts
 
 ### Code Generation
+
 ```
 Create a Drupal module that [describe functionality].
 Follow Drupal coding standards and use PHP 8 features where appropriate.
@@ -10,6 +11,7 @@ Include proper dependency injection and service usage.
 ```
 
 ### Code Review
+
 ```
 Review this Drupal code for:
 - Drupal coding standards compliance
@@ -20,6 +22,7 @@ Review this Drupal code for:
 ```
 
 ### Debugging
+
 ```
 Help me debug this Drupal issue:
 [Describe the problem]
@@ -31,6 +34,7 @@ What are the most likely causes and solutions?
 ## Specific Drupal Tasks
 
 ### Module Development
+
 ```
 Create a Drupal 10 module that:
 - Implements a custom content type
@@ -41,6 +45,7 @@ Create a Drupal 10 module that:
 ```
 
 ### Theme Development
+
 ```
 Help me create a Drupal theme that:
 - Extends a base theme
@@ -51,6 +56,7 @@ Help me create a Drupal theme that:
 ```
 
 ### Configuration Management
+
 ```
 Help me set up Drupal configuration management:
 - Export current configuration
@@ -60,6 +66,7 @@ Help me set up Drupal configuration management:
 ```
 
 ### Performance Optimization
+
 ```
 Analyze this Drupal site for performance issues:
 - Database query optimization
@@ -72,6 +79,7 @@ Analyze this Drupal site for performance issues:
 ## Common Drupal Patterns
 
 ### Service Definition
+
 ```
 Create a Drupal service definition for [describe service]:
 - Proper service class structure
@@ -81,6 +89,7 @@ Create a Drupal service definition for [describe service]:
 ```
 
 ### Plugin Development
+
 ```
 Create a Drupal plugin that:
 - Implements the [plugin type] interface
@@ -90,6 +99,7 @@ Create a Drupal plugin that:
 ```
 
 ### Form API
+
 ```
 Create a Drupal form that:
 - Uses Form API properly
@@ -100,6 +110,7 @@ Create a Drupal form that:
 ```
 
 ### Entity Development
+
 ```
 Create a Drupal entity that:
 - Extends appropriate base class
@@ -112,6 +123,7 @@ Create a Drupal entity that:
 ## Troubleshooting Prompts
 
 ### Common Issues
+
 ```
 I'm getting this Drupal error:
 [Error message]
@@ -120,6 +132,7 @@ What are the most common causes and how do I fix them?
 ```
 
 ### Performance Issues
+
 ```
 My Drupal site is slow:
 [Describe symptoms]
@@ -128,6 +141,7 @@ What should I check first and how do I optimize?
 ```
 
 ### Security Concerns
+
 ```
 I need to secure this Drupal site:
 [Current setup]
@@ -138,6 +152,7 @@ What are the essential security measures I should implement?
 ## Best Practices
 
 ### Code Quality
+
 ```
 Help me improve this Drupal code:
 [Code snippet]
@@ -149,6 +164,7 @@ Focus on:
 ```
 
 ### Architecture
+
 ```
 Help me design a Drupal solution for:
 [Requirements]
@@ -161,6 +177,7 @@ Consider:
 ```
 
 ### Testing
+
 ```
 Help me write tests for this Drupal code:
 [Code to test]
@@ -174,6 +191,7 @@ Include:
 ## Context-Specific Prompts
 
 ### When Working with Views
+
 ```
 Help me create a Drupal View that:
 [Describe requirements]
@@ -185,6 +203,7 @@ Include:
 ```
 
 ### When Working with Rules
+
 ```
 Help me create a Drupal Rule that:
 [Describe workflow]
@@ -196,6 +215,7 @@ Include:
 ```
 
 ### When Working with Custom Fields
+
 ```
 Help me create a custom Drupal field that:
 [Describe field type]

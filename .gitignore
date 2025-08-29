@@ -112,10 +112,7 @@ ehthumbs.db
 Thumbs.db
 
 # Test files and directories
-test/
-tests/
 __tests__/
-*.test.js
 *.spec.js
 
 # Build artifacts

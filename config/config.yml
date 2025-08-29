@@ -1,0 +1,107 @@
+ides:
+  cursor:
+    name: "Cursor"
+    tasks:
+      memory-bank:
+        name: "Memory Bank Setup"
+        description: "Initialize cursor-bank for AI assistance"
+        type: "package-install"
+        package:
+          name: "cursor-bank"
+          type: "npx"
+          install-command: "npx cursor-bank init"
+          version-command: "npx cursor-bank --version"
+        required: false
+        prompt: "Would you like to set up a memory bank for AI assistance?"
+      rules:
+        name: "Project Rules"
+        description: "Copy project-specific rules to .cursor/rules/"
+        type: "copy-files"
+        source: "assets/rules/cursor/{project-type}/"
+        target: ".cursor/rules/"
+        required: false
+        prompt: "Would you like to install project-specific rules and guidelines?"
+      vscode-xdebug:
+        name: "VSCode XDebug"
+        description: "Set up VSCode XDebug for PHP debugging"
+        type: "copy-files"
+        source: "assets/vscode"
+        # Optional: specify individual files/directories to copy
+        items: ["launch.json"]
+        target: ".vscode/"
+        required: false
+        prompt: "Would you like to set up VSCode XDebug for PHP debugging?"
+      # git-hooks:
+      #   name: "Git Hooks"
+      #   description: "Set up Git hooks with Husky"
+      #   type: "package-install"
+      #   package:
+      #     name: "husky"
+      #     type: "npm"
+      #     install-command: "npm install --save-dev husky && npx husky install"
+      #     version-command: "npm list husky"
+      #   required: false
+      #   prompt: "Would you like to set up Git hooks with Husky?"
+  windsurf:
+    name: "Windsurf"
+    tasks:
+      rules:
+        name: "Project Rules"
+        description: "Copy project-specific rules to .windsurf/rules/"
+        type: "copy-files"
+        source: "assets/rules/windsurf/{project-type}/"
+        target: ".windsurf/rules/"
+        # Optional: specify individual files/directories to copy
+        # items: ["coding-standards.md", "ai-prompts.md", "project-rules.md"]
+        required: false
+        prompt: "Would you like to install project-specific rules and guidelines?"
+  vscode:
+    name: "VSCode"
+    tasks:
+      vscode-xdebug:
+        name: "VSCode XDebug"
+        description: "Set up VSCode XDebug for PHP debugging"
+        type: "copy-files"
+        source: "assets/vscode"
+        # Optional: specify individual files/directories to copy
+        items: ["launch.json"]
+        target: ".vscode/"
+        required: false
+        prompt: "Would you like to set up VSCode XDebug for PHP debugging?"
+projects:
+  drupal:
+    name: "Drupal"
+    validation:
+      requiredFiles:
+        - "composer.json"
+        - ".git"
+      requiredContent:
+        composer.json: "drupal/core"
+      optionalFiles:
+        - "README.md"
+        - "package.json"
+        - "web/sites/default/settings.php"
+  # react:
+  #   name: "React"
+  #   validation:
+  #     requiredFiles:
+  #       - "package.json"
+  #       - ".git"
+  #     requiredContent:
+  #       package.json: "react"
+  #     optionalFiles:
+  #       - "README.md"
+  #       - "src/App.js"
+  #       - "public/index.html"
+  # laravel:
+  #   name: "Laravel"
+  #   validation:
+  #     requiredFiles:
+  #       - "composer.json"
+  #       - ".git"
+  #     requiredContent:
+  #       composer.json: "laravel/framework"
+  #     optionalFiles:
+  #       - "README.md"
+  #       - "package.json"
+  #       - ".env"

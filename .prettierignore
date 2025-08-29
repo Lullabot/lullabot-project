@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# Generated files
+*.min.js
+*.min.css
+
+# Package files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Configuration files that should maintain their format
+*.yml
+*.yaml
+
+# Documentation
+README.md
+CHANGELOG.md
+LICENSE
+
+# Test files (optional - remove if you want to format them)
+tests/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db

@@ -2,7 +2,13 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 
 /**
- * Prompt user for configuration options
+ * Prompt user for configuration options.
+ * Collects IDE selection, project type, and task preferences from the user.
+ * Handles both interactive prompts and command-line options.
+ *
+ * @param {Object} options - Command line options that may override prompts
+ * @param {Object} config - Full configuration object with available options
+ * @returns {Promise<Object>} User configuration object
  */
 async function promptUser(options, config) {
   const userConfig = {};
@@ -13,29 +19,36 @@ async function promptUser(options, config) {
   // Get project type selection
   userConfig.project = await getProjectSelection(options, config);
 
-  // Get memory bank preference
-  userConfig.memoryBank = await getMemoryBankPreference(options, config, userConfig.ide);
-
-  // Get rules preference
-  userConfig.rules = await getRulesPreference(options);
+  // Get task preferences
+  const { getTasks } = await import('./ide-config.js');
+  const tasks = getTasks(userConfig.ide, userConfig.project, config);
+  userConfig.taskPreferences = await getTaskPreferences(options, tasks);
 
   return userConfig;
 }
 
 /**
- * Get IDE selection from user
+ * Get IDE selection from user or command line options.
+ * Validates the IDE against available options and provides interactive selection.
+ *
+ * @param {Object} options - Command line options
+ * @param {Object} config - Full configuration object
+ * @returns {Promise<string>} Selected IDE identifier
+ * @throws {Error} If IDE is not supported
  */
 async function getIdeSelection(options, config) {
   // If IDE is provided via command line, use it
   if (options.ide) {
     if (!config.ides?.[options.ide]) {
-      throw new Error(`Unsupported IDE: ${options.ide}. Available IDEs: ${Object.keys(config.ides || {}).join(', ')}`);
+      throw new Error(
+        `Unsupported IDE: ${options.ide}. Available IDEs: ${Object.keys(config.ides || {}).join(', ')}`
+      );
     }
     return options.ide;
   }
 
-  // Otherwise, prompt user
-  const ideChoices = Object.keys(config.ides || {}).map(ideKey => ({
+  // Otherwise, prompt user with available IDE choices
+  const ideChoices = Object.keys(config.ides || {}).map((ideKey) => ({
     name: config.ides[ideKey].name,
     value: ideKey
   }));
@@ -54,23 +67,33 @@ async function getIdeSelection(options, config) {
 }
 
 /**
- * Get project type selection from user
+ * Get project type selection from user or command line options.
+ * Validates the project type against available options and provides interactive selection.
+ *
+ * @param {Object} options - Command line options
+ * @param {Object} config - Full configuration object
+ * @returns {Promise<string>} Selected project type identifier
+ * @throws {Error} If project type is not supported
  */
 async function getProjectSelection(options, config) {
   // If project type is provided via command line, validate it
   if (options.project) {
     if (!config.projects?.[options.project]) {
       const availableProjects = Object.keys(config.projects || {}).join(', ');
-      throw new Error(`Unsupported project type: ${options.project}. Available projects: ${availableProjects}`);
+      throw new Error(
+        `Unsupported project type: ${options.project}. Available projects: ${availableProjects}`
+      );
     }
     return options.project;
   }
 
-  // Otherwise, prompt user with available project types
-  const projectChoices = Object.entries(config.projects || {}).map(([key, project]) => ({
-    name: project.name,
-    value: key
-  }));
+  // Otherwise, prompt user with available project type choices
+  const projectChoices = Object.entries(config.projects || {}).map(
+    ([key, project]) => ({
+      name: project.name,
+      value: key
+    })
+  );
 
   const { project } = await inquirer.prompt([
     {
@@ -86,65 +109,78 @@ async function getProjectSelection(options, config) {
 }
 
 /**
- * Get memory bank preference from user
+ * Get task preferences from user or command line options.
+ * Handles various task selection modes: all tasks, specific tasks, skip tasks, or interactive.
+ * Required tasks are always enabled regardless of user preferences.
+ *
+ * @param {Object} options - Command line options
+ * @param {Object} tasks - Available tasks object
+ * @returns {Promise<Object>} Task preferences object with task IDs as keys and boolean values
  */
-async function getMemoryBankPreference(options, config, selectedIde) {
-  // If skip memory bank option is provided via command line, disable it
-  if (options.skipMemoryBank) {
-    return false;
-  }
+async function getTaskPreferences(options, tasks) {
+  const taskPreferences = {};
 
-  // Check if the selected IDE has a memory bank command
-  const ideSettings = config.ides[selectedIde];
-  if (!ideSettings || !ideSettings['memory-bank-command']) {
-    // IDE doesn't have a memory bank command, so don't prompt
-    return false;
-  }
-
-  // Otherwise, prompt user (default to true)
-  const { memoryBank } = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'memoryBank',
-      message: 'Would you like to set up a memory bank for AI assistance?',
-      default: true
+  // If --all-tasks is specified, enable all tasks
+  if (options.allTasks) {
+    for (const [taskId] of Object.entries(tasks)) {
+      taskPreferences[taskId] = true;
     }
-  ]);
+    return taskPreferences;
+  }
 
-  return memoryBank;
+  // If --tasks is specified, only enable those tasks
+  if (options.tasks) {
+    const taskList = options.tasks.split(',').map((t) => t.trim());
+    for (const [taskId] of Object.entries(tasks)) {
+      taskPreferences[taskId] = taskList.includes(taskId);
+    }
+    return taskPreferences;
+  }
+
+  // If --skip-tasks is specified, disable those tasks
+  const skipTasks = options.skipTasks
+    ? options.skipTasks.split(',').map((t) => t.trim())
+    : [];
+
+  // Prompt for each optional task
+  for (const [taskId, task] of Object.entries(tasks)) {
+    if (task.required) {
+      // Required tasks are always enabled
+      taskPreferences[taskId] = true;
+    } else if (skipTasks.includes(taskId)) {
+      // Skip tasks that are explicitly disabled
+      taskPreferences[taskId] = false;
+    } else {
+      // Prompt user for optional tasks
+      const answer = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'enabled',
+          message: task.prompt || `Would you like to run: ${task.name}?`,
+          default: true
+        }
+      ]);
+      taskPreferences[taskId] = answer.enabled;
+    }
+  }
+
+  return taskPreferences;
 }
 
 /**
- * Get rules preference from user
- */
-async function getRulesPreference(options) {
-  // If skip rules option is provided via command line, disable it
-  if (options.skipRules) {
-    return false;
-  }
-
-  // Otherwise, prompt user (default to true)
-  const { rules } = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'rules',
-      message: 'Would you like to install project-specific rules and guidelines?',
-      default: true
-    }
-  ]);
-
-  return rules;
-}
-
-/**
- * Confirm destructive action
+ * Confirm destructive action with user.
+ * Prompts for confirmation before performing potentially destructive operations.
+ *
+ * @param {string} message - Confirmation message to display
+ * @param {boolean} defaultAnswer - Default answer (true for yes, false for no)
+ * @returns {Promise<boolean>} True if user confirmed, false otherwise
  */
 async function confirmAction(message, defaultAnswer = false) {
   const { confirmed } = await inquirer.prompt([
     {
       type: 'confirm',
       name: 'confirmed',
-      message: message,
+      message,
       default: defaultAnswer
     }
   ]);
@@ -153,14 +189,28 @@ async function confirmAction(message, defaultAnswer = false) {
 }
 
 /**
- * Display a summary and get confirmation
+ * Display a summary and get confirmation before proceeding.
+ * Shows the configuration that will be applied and asks for final confirmation.
+ *
+ * @param {Object} config - Configuration object to summarize
+ * @param {Object} tasks - Available tasks object
+ * @returns {Promise<boolean>} True if user wants to proceed, false otherwise
  */
-async function confirmSetup(config) {
-  console.log('\n' + chalk.blue('📋 Setup Summary:'));
+async function confirmSetup(config, tasks) {
+  console.log(`\n${chalk.blue('📋 Setup Summary:')}`);
   console.log(`• IDE: ${chalk.cyan(config.ide)}`);
   console.log(`• Project Type: ${chalk.cyan(config.project)}`);
-  console.log(`• Memory Bank: ${config.memoryBank ? chalk.green('✅') : chalk.gray('❌')}`);
-  console.log(`• Project Rules: ${config.rules ? chalk.green('✅') : chalk.gray('❌')}`);
+
+  // Display enabled tasks
+  const enabledTasks = Object.entries(config.taskPreferences || {})
+    .filter(([_, enabled]) => enabled)
+    .map(([taskId, _]) => tasks[taskId]?.name || taskId);
+
+  if (enabledTasks.length > 0) {
+    console.log(`• Tasks: ${chalk.green('✅')} ${enabledTasks.join(', ')}`);
+  } else {
+    console.log(`• Tasks: ${chalk.gray('❌ None selected')}`);
+  }
 
   const { proceed } = await inquirer.prompt([
     {
@@ -174,8 +224,4 @@ async function confirmSetup(config) {
   return proceed;
 }
 
-export {
-  promptUser,
-  confirmAction,
-  confirmSetup
-};
+export { promptUser, confirmAction, confirmSetup };

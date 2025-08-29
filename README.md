@@ -8,16 +8,67 @@ A CLI tool that helps developers set up their IDE environment with AI tools, mem
 - **Project Validation**: Automatically validate project types and structure
 - **Memory Bank Setup**: Configure AI memory banks for enhanced development
 - **Project Rules**: Install project-specific coding standards and guidelines
+- **Flexible File Copying**: Copy entire directories or select specific files/directories
 - **Interactive Setup**: Guided setup process with clear prompts
 - **Update Management**: Easy updates to existing configurations
 - **Extensible**: Easy to add new IDEs and project types
 
-## Installation
+## Development
 
 ### Prerequisites
 
-- Node.js 16.0.0 or higher
+- Node.js 18.18.0 or higher (for ESLint v9)
 - npm or yarn package manager
+
+### Development Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd lullabot-project
+   ```
+
+2. **Run the development setup script:**
+   ```bash
+   ./scripts/dev-setup.sh
+   ```
+
+3. **Or manually install dependencies:**
+   ```bash
+   npm install
+   ```
+
+### Development Commands
+
+- `npm run lint` - Run ESLint to check code quality
+- `npm run lint:fix` - Run ESLint with auto-fix for fixable issues
+- `npm run format` - Run Prettier to format code
+- `npm run format:check` - Check if code is properly formatted
+- `npm test` - Run tests
+- `npm start` - Start the application
+
+### Code Quality
+
+This project uses:
+- **ESLint v9** for code linting and syntax checking
+- **Prettier** for code formatting
+- **Jest** for testing
+
+The configuration ensures consistent code style across the project with:
+- 2-space indentation
+- Single quotes for strings
+- 80-character line length
+- Semicolons required
+- No trailing commas
+
+### VS Code Integration
+
+The project includes VS Code settings for automatic formatting and linting:
+- Format on save enabled
+- ESLint auto-fix on save
+- Prettier as default formatter
+
+## Installation
 
 ### Install the Tool
 
@@ -54,8 +105,9 @@ lullabot-project init [options]
 **Options:**
 - `-i, --ide <ide>` - Specify IDE (cursor)
 - `-p, --project <type>` - Specify project type (drupal)
-- `--skip-memory-bank` - Skip memory bank setup
-- `--skip-rules` - Skip project rules
+- `--skip-tasks <tasks>` - Skip specific tasks (comma-separated)
+- `--tasks <tasks>` - Execute only specific tasks (comma-separated)
+- `--all-tasks` - Execute all available tasks
 - `-v, --verbose` - Verbose output
 - `--skip-validation` - Skip project type validation
 - `--dry-run` - Show what would be done without executing
@@ -72,13 +124,19 @@ lullabot-project init -i cursor -p drupal
 lullabot-project init -i cursor -p drupal
 
 # Setup without memory bank
-lullabot-project init -i cursor -p drupal --skip-memory-bank
+lullabot-project init -i cursor -p drupal --skip-tasks memory-bank
 
 # Setup without rules
-lullabot-project init -i cursor -p drupal --skip-rules
+lullabot-project init -i cursor -p drupal --skip-tasks rules
 
 # Setup without both features
-lullabot-project init -i cursor -p drupal --skip-memory-bank --skip-rules
+lullabot-project init -i cursor -p drupal --skip-tasks memory-bank,rules
+
+# Execute only specific tasks
+lullabot-project init -i cursor -p drupal --tasks memory-bank
+
+# Execute all available tasks
+lullabot-project init -i cursor -p drupal --all-tasks
 
 # Verbose setup with validation
 lullabot-project init -i cursor -p drupal -v
@@ -95,8 +153,9 @@ lullabot-project update [options]
 **Options:**
 - `-i, --ide <ide>` - Override stored IDE setting (optional)
 - `-p, --project <type>` - Override stored project type (optional)
-- `--skip-memory-bank` - Skip memory bank setup
-- `--skip-rules` - Skip project rules
+- `--skip-tasks <tasks>` - Skip specific tasks (comma-separated)
+- `--tasks <tasks>` - Execute only specific tasks (comma-separated)
+- `--all-tasks` - Execute all available tasks
 - `-v, --verbose` - Verbose output
 - `--dry-run` - Show what would be updated without executing
 - `-F, --force` - Force update - recreate configuration if corrupted
@@ -113,13 +172,13 @@ lullabot-project update -v
 lullabot-project update -i windsurf
 
 # Update and skip memory bank
-lullabot-project update --skip-memory-bank
+lullabot-project update --skip-tasks memory-bank
 
 # Update and skip rules
-lullabot-project update --skip-rules
+lullabot-project update --skip-tasks rules
 
 # Update with overrides and verbose
-lullabot-project update -i cursor -p drupal --skip-rules -v
+lullabot-project update -i cursor -p drupal --skip-tasks rules -v
 
 # Force update if configuration is corrupted
 lullabot-project update --force
@@ -214,7 +273,181 @@ New IDEs can be easily added by updating the `config/config.yml` file:
 ides:
   windsurf:
     name: "Windsurf"
-    # No memory-bank-command - Windsurf does not support external memory banks
+    tasks:
+      rules:
+        name: "Project Rules"
+        type: "copy-files"
+        source: "rules/windsurf/{project-type}/"
+        target: ".windsurf/rules/"
+        required: false
+        prompt: "Would you like to install project-specific rules and guidelines?"
+```
+
+## Task System
+
+The tool uses a flexible task system that allows different IDEs to have different setup requirements. Each IDE can define multiple tasks of different types.
+
+### Task Types
+
+#### `package-install` - Install Packages
+
+Install packages using various package managers:
+
+```yaml
+memory-bank:
+  name: "Memory Bank Setup"
+  type: "package-install"
+  package:
+    name: "cursor-bank"
+    type: "npx"
+    install-command: "npx cursor-bank init"
+    version-command: "npx cursor-bank --version"
+  required: false
+  prompt: "Would you like to set up a memory bank for AI assistance?"
+```
+
+**Supported Package Types:**
+- **`npx`**: Execute packages via npx (e.g., `npx package-name --version`)
+- **`npm`**: Install via npm (e.g., `npm list package-name`)
+- **`yarn`**: Install via yarn (e.g., `yarn list package-name`)
+- **`pnpm`**: Install via pnpm (e.g., `pnpm list package-name`)
+- **`custom`**: Fully custom commands
+
+**Package Configuration:**
+- `name`: Package name for tracking
+- `type`: Package manager type
+- `install-command`: Command to install the package
+- `version-command`: Command to check package version (optional, auto-generated if not provided)
+
+#### `copy-files` - Copy Files and Directories
+
+Copy project-specific files to IDE locations:
+
+```yaml
+rules:
+  name: "Project Rules"
+  type: "copy-files"
+  source: "rules/cursor/{project-type}/"
+  target: ".cursor/rules/"
+  required: false
+  prompt: "Would you like to install project-specific rules and guidelines?"
+```
+
+**Configuration:**
+- `source`: Source directory with placeholders (`{ide}`, `{project-type}`)
+- `target`: Target directory with placeholders
+- `items`: Optional array of specific files/directories to copy (if not specified, copies all items)
+
+**Copy Options:**
+- **Copy all files/directories** (default behavior):
+  ```yaml
+  rules:
+    type: "copy-files"
+    source: "rules/cursor/{project-type}/"
+    target: ".cursor/rules/"
+  ```
+
+- **Copy specific files only**:
+  ```yaml
+  rules:
+    type: "copy-files"
+    source: "rules/cursor/{project-type}/"
+    target: ".cursor/rules/"
+    items: ["coding-standards.md", "ai-prompts.md"]
+  ```
+
+- **Copy specific directories only**:
+  ```yaml
+  rules:
+    type: "copy-files"
+    source: "rules/cursor/{project-type}/"
+    target: ".cursor/rules/"
+    items: ["config", "templates"]
+  ```
+
+- **Copy mixed files and directories**:
+  ```yaml
+  rules:
+    type: "copy-files"
+    source: "assets/vscode"
+    target: ".vscode/"
+    items: ["launch.json", "settings.json", "extensions"]
+  ```
+
+#### `command` - Execute Commands
+
+Execute arbitrary shell commands:
+
+```yaml
+custom-setup:
+  name: "Custom Setup"
+  type: "command"
+  command: "echo 'Custom setup complete'"
+  required: false
+  prompt: "Would you like to run custom setup?"
+```
+
+### Task Configuration
+
+**Required Fields:**
+- `name`: Human-readable task name
+- `type`: Task type (`package-install`, `copy-files`, `command`)
+- `required`: Whether the task is required (true) or optional (false)
+
+**Optional Fields:**
+- `description`: Detailed task description
+- `prompt`: Custom prompt text for optional tasks
+
+### Task Execution
+
+- Tasks are executed in the order they are defined in the configuration
+- Required tasks are automatically enabled
+- Optional tasks prompt the user for confirmation
+- Task results are tracked and stored in the configuration file
+- Package versions are automatically tracked for update checking
+
+### Adding New Tasks
+
+To add new tasks to an IDE, update the `tasks` section in `config/config.yml`:
+
+```yaml
+ides:
+  cursor:
+    tasks:
+      new-task:
+        name: "New Task"
+        type: "package-install"
+        package:
+          name: "new-package"
+          type: "npm"
+          install-command: "npm install new-package"
+          version-command: "npm list new-package"
+        required: false
+        prompt: "Would you like to install the new package?"
+
+      custom-files:
+        name: "Custom Files"
+        type: "copy-files"
+        source: "assets/custom/{project-type}/"
+        target: ".custom/"
+        items: ["config.json", "templates"]
+        required: false
+        prompt: "Would you like to install custom configuration files?"
+```
+
+### Command Line Task Control
+
+Use these flags to control which tasks are executed:
+
+```bash
+# Skip specific tasks
+lullabot-project init --skip-tasks memory-bank,rules
+
+# Execute only specific tasks
+lullabot-project init --tasks memory-bank
+
+# Execute all available tasks
+lullabot-project init --all-tasks
 ```
 
 **Memory Bank Support:**
@@ -266,8 +499,9 @@ project:
   ide: "cursor"
 
 features:
-  memoryBank: true
-  rules: true
+  taskPreferences:
+    memory-bank: true
+    rules: true
 
 installation:
   created: "2024-01-15T10:30:00Z"
@@ -280,7 +514,7 @@ files:
   - ".cursor/rules/project-rules.md"
 
 packages:
-  memoryBank:
+  memory-bank:
     name: "cursor-bank"
     version: "1.0.1"
     lastUpdated: "2024-01-20T14:30:00Z"
@@ -435,6 +669,36 @@ lullabot-project/
 
 ### Testing
 
+The project includes a comprehensive test suite. For detailed testing information, see [tests/README.md](tests/README.md).
+
+#### Quick Test Commands
+
+```bash
+# Run all tests
+npm test
+
+# Run specific test files
+npm test tests/functional.test.js
+
+# Run tests in watch mode
+npm run test:watch
+
+# Generate coverage report
+npm run test:coverage
+```
+
+#### Test Coverage
+
+The test suite covers:
+- ✅ CLI command functionality
+- ✅ Configuration management
+- ✅ File operations
+- ✅ User interaction
+- ✅ Error handling
+- ✅ Integration workflows
+
+#### Manual Testing
+
 ```bash
 # Test the tool locally
 npm start init -i cursor -p drupal -v
@@ -469,6 +733,11 @@ For issues and questions:
 - Review the verbose output for debugging
 
 ## Changelog
+
+### Version 1.1.0
+- **Enhanced File Copying**: Added support for copying individual files and/or directories
+- **Flexible Task Configuration**: Copy-files tasks now support `items` parameter for selective copying
+- **Backward Compatibility**: All existing configurations continue to work without changes
 
 ### Version 1.0.0
 - Initial release
