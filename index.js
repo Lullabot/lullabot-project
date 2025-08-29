@@ -24,7 +24,7 @@ program
 program
   .command('init')
   .description('Initialize development environment setup')
-  .option('-i, --ide <ide>', 'Specify IDE (cursor)')
+  .option('-t, --tool <tool>', 'Specify tool (cursor, windsurf, vscode)')
   .option('-p, --project <type>', 'Specify project type (drupal)')
   .option('--skip-tasks <tasks>', 'Skip specific tasks (comma-separated)')
   .option('--tasks <tasks>', 'Only run specific tasks (comma-separated)')
@@ -37,7 +37,7 @@ program
 program
   .command('update')
   .description('Update existing development environment setup')
-  .option('-i, --ide <ide>', 'Override stored IDE setting')
+  .option('-t, --tool <tool>', 'Override stored tool setting')
   .option('-p, --project <type>', 'Override stored project type')
   .option('--skip-tasks <tasks>', 'Skip specific tasks (comma-separated)')
   .option('--tasks <tasks>', 'Only run specific tasks (comma-separated)')

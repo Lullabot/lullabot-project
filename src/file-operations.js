@@ -151,7 +151,7 @@ async function createConfigFile(config, verbose = false) {
   const configData = {
     project: {
       type: config.project?.type || config.project,
-      ide: config.project?.ide || config.ide
+      tool: config.project?.tool || config.tool
     },
     features: {
       taskPreferences:
@@ -269,12 +269,12 @@ async function getCreatedFiles(config) {
  * Routes to the appropriate execution function based on task type.
  *
  * @param {Object} task - Task configuration object
- * @param {string} ide - The IDE identifier
+ * @param {string} tool - The tool identifier
  * @param {string} projectType - The project type
  * @param {boolean} verbose - Whether to show detailed output
  * @returns {Promise<Object>} Task execution result
  */
-async function executeTask(task, ide, projectType, verbose = false) {
+async function executeTask(task, tool, projectType, verbose = false) {
   const taskId = task.id;
 
   if (verbose) {
@@ -287,7 +287,7 @@ async function executeTask(task, ide, projectType, verbose = false) {
       case 'command':
         return await executeCommandTask(task, verbose);
       case 'copy-files':
-        return await executeCopyFilesTask(task, ide, projectType, verbose);
+        return await executeCopyFilesTask(task, tool, projectType, verbose);
       case 'package-install':
         return await executePackageInstallTask(task, verbose);
       default:
@@ -344,15 +344,15 @@ async function executeCommandTask(task, verbose = false) {
  * Determines whether to use Git operations or local filesystem based on the source path.
  *
  * @param {Object} task - Task configuration object
- * @param {string} ide - The IDE identifier
+ * @param {string} tool - The tool identifier
  * @param {string} projectType - The project type
  * @param {boolean} verbose - Whether to show detailed output
  * @returns {Promise<string[]>} Array of copied file paths
  */
-async function executeCopyFilesTask(task, ide, projectType, verbose = false) {
+async function executeCopyFilesTask(task, tool, projectType, verbose = false) {
   // Replace placeholders in source and target paths
   const source = task.source
-    .replace('{ide}', ide)
+    .replace('{tool}', tool)
     .replace('{project-type}', projectType);
   const target = task.target.replace('{project-type}', projectType);
 
