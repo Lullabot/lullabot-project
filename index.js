@@ -6,7 +6,8 @@ import {
   initCommand,
   updateCommand,
   configCommand,
-  removeCommand
+  removeCommand,
+  taskCommand
 } from './src/commands.js';
 import { getToolVersion } from './src/file-operations.js';
 
@@ -62,6 +63,14 @@ program
   .option('--dry-run', 'Show what would be removed without executing')
   .option('-f, --force', 'Force removal without confirmation')
   .action(removeCommand);
+
+program
+  .command('task')
+  .description('Run specific tasks using stored configuration')
+  .argument('<tasks...>', 'Task names to run')
+  .option('-v, --verbose', 'Verbose output')
+  .option('--dry-run', 'Show what would be done without executing')
+  .action(taskCommand);
 
 // Handle errors gracefully
 program.exitOverride();

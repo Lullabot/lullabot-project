@@ -1,5 +1,11 @@
 import chalk from 'chalk';
-import { initSetup, updateSetup, showConfig, removeSetup } from './cli.js';
+import {
+  initSetup,
+  updateSetup,
+  showConfig,
+  removeSetup,
+  taskSetup
+} from './cli.js';
 
 /**
  * Initialize development environment setup command handler.
@@ -95,4 +101,31 @@ async function removeCommand(options) {
   }
 }
 
-export { initCommand, updateCommand, configCommand, removeCommand };
+/**
+ * Run specific tasks using stored configuration command handler.
+ * Wraps the taskSetup function with error handling and exit codes.
+ *
+ * @param {string[]} tasks - Array of task names to run
+ * @param {Object} options - Command line options and flags
+ * @param {boolean} options.dryRun - Whether to perform a dry run without making changes
+ * @param {boolean} options.verbose - Whether to show detailed output
+ */
+async function taskCommand(tasks, options) {
+  try {
+    await taskSetup(tasks, options);
+  } catch (error) {
+    console.error(chalk.red('❌ Task execution failed:'), error.message);
+    if (options.verbose) {
+      console.error(chalk.gray('Stack trace:'), error.stack);
+    }
+    process.exit(1);
+  }
+}
+
+export {
+  initCommand,
+  updateCommand,
+  configCommand,
+  removeCommand,
+  taskCommand
+};
