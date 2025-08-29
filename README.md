@@ -8,65 +8,11 @@ A CLI tool that helps developers set up their IDE environment with AI tools, mem
 - **Project Validation**: Automatically validate project types and structure
 - **Memory Bank Setup**: Configure AI memory banks for enhanced development
 - **Project Rules**: Install project-specific coding standards and guidelines
-- **Flexible File Copying**: Copy entire directories or select specific files/directories
+- **Git-Based File Access**: Pull latest rules and configurations from the repository
+- **Flexible Task System**: Dynamic task execution with package installation, file copying, and command execution
 - **Interactive Setup**: Guided setup process with clear prompts
 - **Update Management**: Easy updates to existing configurations
 - **Extensible**: Easy to add new IDEs and project types
-
-## Development
-
-### Prerequisites
-
-- Node.js 18.18.0 or higher (for ESLint v9)
-- npm or yarn package manager
-
-### Development Setup
-
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd lullabot-project
-   ```
-
-2. **Run the development setup script:**
-   ```bash
-   ./scripts/dev-setup.sh
-   ```
-
-3. **Or manually install dependencies:**
-   ```bash
-   npm install
-   ```
-
-### Development Commands
-
-- `npm run lint` - Run ESLint to check code quality
-- `npm run lint:fix` - Run ESLint with auto-fix for fixable issues
-- `npm run format` - Run Prettier to format code
-- `npm run format:check` - Check if code is properly formatted
-- `npm test` - Run tests
-- `npm start` - Start the application
-
-### Code Quality
-
-This project uses:
-- **ESLint v9** for code linting and syntax checking
-- **Prettier** for code formatting
-- **Jest** for testing
-
-The configuration ensures consistent code style across the project with:
-- 2-space indentation
-- Single quotes for strings
-- 80-character line length
-- Semicolons required
-- No trailing commas
-
-### VS Code Integration
-
-The project includes VS Code settings for automatic formatting and linting:
-- Format on save enabled
-- ESLint auto-fix on save
-- Prettier as default formatter
 
 ## Installation
 
@@ -89,7 +35,7 @@ npx lullabot-project init
 lullabot-project init
 
 # Quick setup with options
-lullabot-project init -i cursor -p drupal -m -r
+lullabot-project init -i cursor -p drupal --all-tasks
 ```
 
 ### Commands
@@ -103,7 +49,7 @@ lullabot-project init [options]
 ```
 
 **Options:**
-- `-i, --ide <ide>` - Specify IDE (cursor)
+- `-i, --ide <ide>` - Specify IDE (cursor, windsurf, vscode)
 - `-p, --project <type>` - Specify project type (drupal)
 - `--skip-tasks <tasks>` - Skip specific tasks (comma-separated)
 - `--tasks <tasks>` - Execute only specific tasks (comma-separated)
@@ -121,7 +67,7 @@ lullabot-project init
 lullabot-project init -i cursor -p drupal
 
 # Setup with all features (default)
-lullabot-project init -i cursor -p drupal
+lullabot-project init -i cursor -p drupal --all-tasks
 
 # Setup without memory bank
 lullabot-project init -i cursor -p drupal --skip-tasks memory-bank
@@ -258,6 +204,7 @@ lullabot-project remove --force --verbose
 - **Memory Bank**: Uses `npx cursor-bank init`
 - **Rules Path**: `.cursor/rules`
 - **Supported Projects**: Drupal
+- **Additional Tasks**: VSCode XDebug setup
 
 ### Windsurf
 
@@ -265,20 +212,27 @@ lullabot-project remove --force --verbose
 - **Rules Path**: `.windsurf/rules`
 - **Supported Projects**: Drupal
 
+### VSCode
+
+- **Memory Bank**: Not supported (no external setup available)
+- **Rules Path**: Not applicable
+- **Supported Projects**: Drupal
+- **Additional Tasks**: VSCode XDebug setup
+
 ### Adding New IDEs
 
 New IDEs can be easily added by updating the `config/config.yml` file:
 
 ```yaml
 ides:
-  windsurf:
-    name: "Windsurf"
+  newide:
+    name: "New IDE"
     tasks:
       rules:
         name: "Project Rules"
         type: "copy-files"
-        source: "rules/windsurf/{project-type}/"
-        target: ".windsurf/rules/"
+        source: "assets/rules/newide/{project-type}/"
+        target: ".newide/rules/"
         required: false
         prompt: "Would you like to install project-specific rules and guidelines?"
 ```
@@ -321,13 +275,13 @@ memory-bank:
 
 #### `copy-files` - Copy Files and Directories
 
-Copy project-specific files to IDE locations:
+Copy project-specific files to IDE locations. Rules are pulled from the Git repository, while other files use local assets:
 
 ```yaml
 rules:
   name: "Project Rules"
   type: "copy-files"
-  source: "rules/cursor/{project-type}/"
+  source: "assets/rules/cursor/{project-type}/"
   target: ".cursor/rules/"
   required: false
   prompt: "Would you like to install project-specific rules and guidelines?"
@@ -343,7 +297,7 @@ rules:
   ```yaml
   rules:
     type: "copy-files"
-    source: "rules/cursor/{project-type}/"
+    source: "assets/rules/cursor/{project-type}/"
     target: ".cursor/rules/"
   ```
 
@@ -351,28 +305,11 @@ rules:
   ```yaml
   rules:
     type: "copy-files"
-    source: "rules/cursor/{project-type}/"
+    source: "assets/rules/cursor/{project-type}/"
     target: ".cursor/rules/"
     items: ["coding-standards.md", "ai-prompts.md"]
   ```
 
-- **Copy specific directories only**:
-  ```yaml
-  rules:
-    type: "copy-files"
-    source: "rules/cursor/{project-type}/"
-    target: ".cursor/rules/"
-    items: ["config", "templates"]
-  ```
-
-- **Copy mixed files and directories**:
-  ```yaml
-  rules:
-    type: "copy-files"
-    source: "assets/vscode"
-    target: ".vscode/"
-    items: ["launch.json", "settings.json", "extensions"]
-  ```
 
 #### `command` - Execute Commands
 
@@ -406,35 +343,6 @@ custom-setup:
 - Task results are tracked and stored in the configuration file
 - Package versions are automatically tracked for update checking
 
-### Adding New Tasks
-
-To add new tasks to an IDE, update the `tasks` section in `config/config.yml`:
-
-```yaml
-ides:
-  cursor:
-    tasks:
-      new-task:
-        name: "New Task"
-        type: "package-install"
-        package:
-          name: "new-package"
-          type: "npm"
-          install-command: "npm install new-package"
-          version-command: "npm list new-package"
-        required: false
-        prompt: "Would you like to install the new package?"
-
-      custom-files:
-        name: "Custom Files"
-        type: "copy-files"
-        source: "assets/custom/{project-type}/"
-        target: ".custom/"
-        items: ["config.json", "templates"]
-        required: false
-        prompt: "Would you like to install custom configuration files?"
-```
-
 ### Command Line Task Control
 
 Use these flags to control which tasks are executed:
@@ -451,9 +359,10 @@ lullabot-project init --all-tasks
 ```
 
 **Memory Bank Support:**
-- If the IDE has a memory bank command, add `memory-bank-command: "command"`
-- If the IDE does not support external memory banks, omit the `memory-bank-command` field
-- The tool will automatically skip memory bank prompts for IDEs without memory bank commands
+- Memory bank setup can be handled through the task system
+- Add a `package-install` task for memory bank setup if the IDE supports it
+- If the IDE does not support external memory banks, simply don't include a memory bank task
+- The tool will automatically skip memory bank prompts for IDEs without memory bank tasks
 
 **Rules Path:**
 - Rules paths are automatically inferred from the IDE key (e.g., "cursor" → `.cursor/rules`)
@@ -487,7 +396,7 @@ projects:
         - "src/"
 ```
 
-Then create the rules directory structure for each IDE: `rules/{ide}/{project-type}/`
+Then create the rules directory structure for each IDE: `assets/rules/{ide}/{project-type}/`
 
 ## Configuration File
 
@@ -502,6 +411,7 @@ features:
   taskPreferences:
     memory-bank: true
     rules: true
+    vscode-xdebug: false
 
 installation:
   created: "2024-01-15T10:30:00Z"
@@ -547,6 +457,15 @@ Rules are installed in IDE-specific locations:
 - **Cursor**: `.cursor/rules/`
 - **Windsurf**: `.windsurf/rules/`
 
+### Git-Based File Access
+
+The tool uses Git to pull the latest rules and configurations from the repository:
+
+- **Repository**: Rules are stored in the [Lullabot/lullabot-project](https://github.com/Lullabot/lullabot-project) repository
+- **Automatic Updates**: Always pulls the latest version from the main branch
+- **Temporary Cloning**: Uses shallow clone for efficiency
+- **Fallback**: If Git fails, falls back to local bundled files
+
 ## Troubleshooting
 
 ### Common Issues
@@ -565,13 +484,14 @@ lullabot-project init --skip-validation
 # Or ensure you're in the correct project directory
 ```
 
-#### "Memory bank setup failed"
-```bash
-# Check if the memory bank package is available
-npx cursor-bank --version
 
-# Try manual installation
-npm install -g cursor-bank
+#### "Git operation failed"
+```bash
+# Check network connectivity
+ping github.com
+
+# Try with verbose output for more details
+lullabot-project init -v
 ```
 
 #### "Permission denied"
@@ -627,7 +547,7 @@ lullabot-project update --dry-run
 lullabot-project remove --dry-run
 
 # Combine with other options
-lullabot-project init -i cursor -p drupal --skip-memory-bank --dry-run
+lullabot-project init -i cursor -p drupal --skip-tasks memory-bank --dry-run
 lullabot-project update --force --dry-run
 ```
 
@@ -640,30 +560,41 @@ lullabot-project/
 ├── package.json
 ├── index.js (main executable)
 ├── src/
-│   ├── cli.js (CLI logic)
+│   ├── cli.js (CLI logic and command handling)
 │   ├── prompts.js (interactive prompts)
 │   ├── ide-config.js (IDE configuration handling)
 │   ├── file-operations.js (file copying/management)
+│   ├── git-operations.js (Git-based file access)
 │   ├── commands.js (specific command execution)
 │   └── validation.js (directory validation)
 ├── config/
 │   └── config.yml (IDE and project definitions)
-└── rules/
-    ├── cursor/
-    │   └── drupal/
-    │       ├── coding-standards.md
-    │       ├── ai-prompts.md
-    │       └── project-rules.md
-    └── windsurf/
-        └── drupal/
-            ├── coding-standards.md
-            ├── ai-prompts.md
-            └── project-rules.md
+├── assets/
+│   ├── rules/
+│   │   ├── cursor/
+│   │   │   └── drupal/
+│   │   │       ├── coding-standards.md
+│   │   │       ├── ai-prompts.md
+│   │   │       └── project-rules.md
+│   │   └── windsurf/
+│   │       └── drupal/
+│   │           ├── coding-standards.md
+│   │           ├── ai-prompts.md
+│   │           └── project-rules.md
+│   └── vscode/
+│       └── launch.json
+└── tests/
+    ├── basic.test.js
+    ├── functional.test.js
+    ├── module.test.js
+    ├── setup.js
+    ├── utils.js
+    └── README.md
 ```
 
 ### Adding New Features
 
-1. **New IDE**: Update `config/ides.yml` and create rules directory
+1. **New IDE**: Update `config/config.yml` and create rules directory in `assets/rules/{ide}/`
 2. **New Project Type**: Add validation rules and create project-specific rules
 3. **New Commands**: Add command logic in `src/commands.js` and CLI setup in `index.js`
 
@@ -704,7 +635,7 @@ The test suite covers:
 npm start init -i cursor -p drupal -v
 
 # Test with dry run
-npm start init -i cursor -p drupal --skip-memory-bank --dry-run
+npm start init -i cursor -p drupal --skip-tasks memory-bank --dry-run
 
 # Test update command
 npm start update -v
@@ -736,12 +667,68 @@ For issues and questions:
 
 ### Version 1.0.0
 - Initial release
-- **Enhanced File Copying**: Added support for copying individual files and/or directories
-- **Flexible Task Configuration**: Copy-files tasks now support `items` parameter for selective copying
+- **Git-Based File Access**: Pull latest rules from repository
+- **Enhanced Task System**: Dynamic task execution with package installation, file copying, and command execution
+- **Flexible File Copying**: Support for copying individual files and/or directories
 - **Backward Compatibility**: All existing configurations continue to work without changes
-- Support for Cursor IDE
+- Support for Cursor, Windsurf, and VSCode IDEs
 - Drupal project type
 - Memory bank integration
 - Project rules installation
 - Interactive setup process
 - Configuration management
+
+## Development
+
+### Prerequisites
+
+- Node.js 18.18.0 or higher (for ESLint v9)
+- npm or yarn package manager
+
+### Development Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd lullabot-project
+   ```
+
+2. **Run the development setup script:**
+   ```bash
+   ./scripts/dev-setup.sh
+   ```
+
+3. **Or manually install dependencies:**
+   ```bash
+   npm install
+   ```
+
+### Development Commands
+
+- `npm run lint` - Run ESLint to check code quality
+- `npm run lint:fix` - Run ESLint with auto-fix for fixable issues
+- `npm run format` - Run Prettier to format code
+- `npm run format:check` - Check if code is properly formatted
+- `npm test` - Run tests
+- `npm start` - Start the application
+
+### Code Quality
+
+This project uses:
+- **ESLint v9** for code linting and syntax checking
+- **Prettier** for code formatting
+- **Jest** for testing
+
+The configuration ensures consistent code style across the project with:
+- 2-space indentation
+- Single quotes for strings
+- 80-character line length
+- Semicolons required
+- No trailing commas
+
+### VS Code Integration
+
+The project includes VS Code settings for automatic formatting and linting:
+- Format on save enabled
+- ESLint auto-fix on save
+- Prettier as default formatter
