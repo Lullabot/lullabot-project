@@ -734,13 +734,11 @@ For issues and questions:
 
 ## Changelog
 
-### Version 1.1.0
+### Version 1.0.0
+- Initial release
 - **Enhanced File Copying**: Added support for copying individual files and/or directories
 - **Flexible Task Configuration**: Copy-files tasks now support `items` parameter for selective copying
 - **Backward Compatibility**: All existing configurations continue to work without changes
-
-### Version 1.0.0
-- Initial release
 - Support for Cursor IDE
 - Drupal project type
 - Memory bank integration

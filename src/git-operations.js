@@ -8,7 +8,7 @@ const git = simpleGit();
 
 // Configuration for our repository
 const config = {
-  repoUrl: 'https://github.com/lullabot/lullabot-project',
+  repoUrl: 'https://github.com/Lullabot/lullabot-project',
   branch: 'main'
 };
 
