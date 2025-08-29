@@ -8,6 +8,7 @@ import {
   executeTask,
   createConfigFile,
   readConfigFile,
+  updateConfigFile,
   getPackageVersion,
   getToolVersion
 } from './file-operations.js';
@@ -1047,4 +1048,237 @@ async function removeSetup(options) {
   }
 }
 
-export { initSetup, updateSetup, showConfig, removeSetup };
+/**
+ * Run specific tasks using stored configuration
+ */
+async function taskSetup(tasks, options) {
+  // Dry run mode
+  if (options.dryRun) {
+    console.log(chalk.blue('🔍 DRY RUN - What would be done:'));
+    console.log(chalk.blue('─'.repeat(50)));
+
+    try {
+      // Load existing configuration
+      const existingConfig = await readConfigFile();
+      if (!existingConfig) {
+        throw new Error(
+          'No existing configuration found. Run "lullabot-project init" first.'
+        );
+      }
+
+      // Validate configuration has required fields
+      if (!existingConfig.project?.ide || !existingConfig.project?.type) {
+        throw new Error(
+          'Configuration is missing IDE or project type. Run "lullabot-project init" to fix.'
+        );
+      }
+
+      // Load task definitions
+      const fullConfig = await loadConfig();
+      const { getTasks } = await import('./ide-config.js');
+      const ideTasks = getTasks(
+        existingConfig.project.ide,
+        existingConfig.project.type,
+        fullConfig
+      );
+
+      // Validate requested tasks exist
+      const invalidTasks = tasks.filter((task) => !ideTasks[task]);
+      if (invalidTasks.length > 0) {
+        throw new Error(
+          `Invalid tasks for ${existingConfig.project.ide}: ${invalidTasks.join(', ')}`
+        );
+      }
+
+      console.log(
+        chalk.blue(
+          `📋 Configuration: ${existingConfig.project.ide}/${existingConfig.project.type}`
+        )
+      );
+      console.log(chalk.blue(`🔧 Tasks to execute: ${tasks.join(', ')}`));
+
+      // Show what each task would do
+      for (const taskName of tasks) {
+        const task = ideTasks[taskName];
+        console.log(chalk.blue(`\n• ${task.name}:`));
+
+        if (task.type === 'command') {
+          console.log(`  Execute: ${task.command}`);
+        } else if (task.type === 'package-install') {
+          console.log(
+            `  Install package: ${task.package.name} (${task.package.type})`
+          );
+          console.log(`  Command: ${task.package['install-command']}`);
+        } else if (task.type === 'copy-files') {
+          const source = task.source
+            .replace(/{ide}/g, existingConfig.project.ide)
+            .replace(/{project-type}/g, existingConfig.project.type);
+          const target = task.target.replace(
+            /{project-type}/g,
+            existingConfig.project.type
+          );
+
+          // Check if this is a rules task
+          if (source.includes('rules')) {
+            console.log(
+              `  Copy rules for ${existingConfig.project.ide}/${existingConfig.project.type} to ${target}`
+            );
+          } else {
+            console.log(`  Copy files from ${source} to ${target}`);
+          }
+        }
+      }
+
+      console.log(
+        `\n${chalk.yellow('Note: No actual changes would be made.')}`
+      );
+      return;
+    } catch (error) {
+      console.error(chalk.red('❌ Dry run failed:'), error.message);
+      throw error;
+    }
+  }
+
+  const spinner = ora('Executing tasks...').start();
+
+  try {
+    // Load existing configuration
+    const existingConfig = await readConfigFile();
+    if (!existingConfig) {
+      throw new Error(
+        'No existing configuration found. Run "lullabot-project init" first.'
+      );
+    }
+
+    // Validate configuration has required fields
+    if (!existingConfig.project?.ide || !existingConfig.project.type) {
+      throw new Error(
+        'Configuration is missing IDE or project type. Run "lullabot-project init" to fix.'
+      );
+    }
+
+    // Load task definitions
+    const fullConfig = await loadConfig();
+    const { getTasks } = await import('./ide-config.js');
+    const ideTasks = getTasks(
+      existingConfig.project.ide,
+      existingConfig.project.type,
+      fullConfig
+    );
+
+    // Validate requested tasks exist
+    const invalidTasks = tasks.filter((task) => !ideTasks[task]);
+    if (invalidTasks.length > 0) {
+      throw new Error(
+        `Invalid tasks for ${existingConfig.project.ide}: ${invalidTasks.join(', ')}`
+      );
+    }
+
+    // Execute tasks in order
+    const results = {};
+    const newFiles = [];
+    const newPackages = {};
+
+    for (const taskName of tasks) {
+      spinner.text = `Executing ${taskName}...`;
+      const task = ideTasks[taskName];
+
+      try {
+        const result = await executeTask(
+          task,
+          existingConfig.project.ide,
+          existingConfig.project.type,
+          options.verbose
+        );
+        results[taskName] = result;
+
+        // Collect new files and package info
+        if (task.type === 'copy-files' && Array.isArray(result)) {
+          newFiles.push(...result);
+        }
+        if (result.packageInfo) {
+          newPackages[taskName] = result.packageInfo;
+        }
+      } catch (error) {
+        spinner.fail(`Task ${taskName} failed`);
+        throw new Error(`Task '${taskName}' failed: ${error.message}`);
+      }
+    }
+
+    // Update configuration
+    spinner.text = 'Updating configuration...';
+
+    // Update task preferences to mark tasks as enabled
+    if (!existingConfig.features) {
+      existingConfig.features = {};
+    }
+    if (!existingConfig.features.taskPreferences) {
+      existingConfig.features.taskPreferences = {};
+    }
+
+    for (const taskName of tasks) {
+      existingConfig.features.taskPreferences[taskName] = true;
+    }
+
+    // Add new files to files array (avoiding duplicates)
+    if (newFiles.length > 0) {
+      if (!existingConfig.files) {
+        existingConfig.files = [];
+      }
+      // Only add files that aren't already in the array
+      for (const newFile of newFiles) {
+        if (!existingConfig.files.includes(newFile)) {
+          existingConfig.files.push(newFile);
+        }
+      }
+    }
+
+    // Add new packages to packages object
+    if (Object.keys(newPackages).length > 0) {
+      if (!existingConfig.packages) {
+        existingConfig.packages = {};
+      }
+      Object.assign(existingConfig.packages, newPackages);
+    }
+
+    // Update installation timestamp
+    if (!existingConfig.installation) {
+      existingConfig.installation = {};
+    }
+    existingConfig.installation.updated = new Date().toISOString();
+
+    // Save updated configuration
+    await updateConfigFile(existingConfig, options.verbose);
+
+    spinner.succeed('Tasks completed successfully!');
+
+    // Display summary
+    console.log(chalk.green('\n✅ Tasks executed:'));
+    tasks.forEach((taskName) => {
+      console.log(chalk.green(`  • ${taskName}`));
+    });
+
+    if (newFiles.length > 0) {
+      console.log(chalk.blue('\n📁 Files added:'));
+      newFiles.forEach((file) => {
+        console.log(chalk.blue(`  • ${file}`));
+      });
+    }
+
+    if (Object.keys(newPackages).length > 0) {
+      console.log(chalk.blue('\n📦 Packages installed:'));
+      Object.entries(newPackages).forEach(([taskName, packageInfo]) => {
+        console.log(
+          chalk.blue(
+            `  • ${taskName}: ${packageInfo.name}@${packageInfo.version}`
+          )
+        );
+      });
+    }
+  } catch (error) {
+    spinner.fail('Task execution failed');
+    throw error;
+  }
+}
+
+export { initSetup, updateSetup, showConfig, removeSetup, taskSetup };

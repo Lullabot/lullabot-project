@@ -161,6 +161,45 @@ lullabot-project config --json
 lullabot-project config --check-updates
 ```
 
+#### `task` - Run Specific Tasks
+
+Run specific tasks using stored configuration. This allows you to execute individual tasks on-demand.
+
+```bash
+lullabot-project task <tasks...> [options]
+```
+
+**Arguments:**
+- `<tasks...>` - Task names to run (can specify multiple)
+
+**Options:**
+- `-v, --verbose` - Verbose output
+- `--dry-run` - Show what would be done without executing
+
+**Examples:**
+```bash
+# Run a single task
+lullabot-project task rules
+
+# Run multiple tasks
+lullabot-project task rules memory-bank
+
+# Run with verbose output
+lullabot-project task rules -v
+
+# See what would be done without executing
+lullabot-project task rules --dry-run
+
+# Run tasks that were skipped during initial setup
+lullabot-project task memory-bank vscode-xdebug
+```
+
+**Use Cases:**
+- Add features that were initially skipped
+- Re-run failed tasks individually
+- Experiment with different task combinations
+- Update specific components without affecting others
+
 #### `remove` - Remove All Files and Configuration
 
 Remove all files and configuration created by lullabot-project.
