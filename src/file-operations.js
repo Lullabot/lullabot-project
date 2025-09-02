@@ -13,7 +13,13 @@ import { getFilesFromGit } from './git-operations.js';
  */
 function getToolVersion() {
   try {
-    const packagePath = path.join(process.cwd(), 'package.json');
+    // Get the tool's package.json path (not the current working directory)
+    // Use the current file's location to find the tool root
+    const currentFile = import.meta.url;
+    const currentDir = path.dirname(new URL(currentFile).pathname);
+    const toolDir = path.resolve(currentDir, '..');
+    const packagePath = path.join(toolDir, 'package.json');
+
     if (fs.existsSync(packagePath)) {
       const packageData = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
       return packageData.version || '1.0.0';

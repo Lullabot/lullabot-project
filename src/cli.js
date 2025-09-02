@@ -391,8 +391,12 @@ async function updateSetup(options) {
           '• All enabled tasks would be executed regardless of version'
         );
       } else {
+        console.log('• Local tool version would be checked for changes');
         console.log(
-          '• Tool version would be compared with latest available tag'
+          '• If local version changed, tasks would execute automatically'
+        );
+        console.log(
+          '• Otherwise, tool version would be compared with latest available tag'
         );
         console.log('• Tasks would only execute if newer version is available');
       }
@@ -579,34 +583,66 @@ async function updateSetup(options) {
     let updateReason = '';
 
     if (!options.force) {
-      spinner.text = 'Checking for version updates...';
-      const updateCheck = await checkIfUpdateNeeded(config, options.verbose);
+      // First check if the local tool version has changed
+      const currentStoredVersion = config.installation?.toolVersion || '1.0.0';
+      const currentLocalVersion = getToolVersion();
 
-      if (!updateCheck.needsUpdate) {
-        shouldExecuteTasks = false;
-        updateReason = updateCheck.reason;
+      if (options.verbose) {
+        spinner.stop();
+        console.log(chalk.gray(`Stored tool version: ${currentStoredVersion}`));
+        console.log(
+          chalk.gray(`Current local tool version: ${currentLocalVersion}`)
+        );
+        spinner.start('Checking for version updates...');
+      }
+
+      // If local tool version has changed, force task execution
+      if (currentStoredVersion !== currentLocalVersion) {
+        shouldExecuteTasks = true;
+        updateReason = `Tool version updated from ${currentStoredVersion} to ${currentLocalVersion}`;
+
+        // Update the stored version in config
+        if (!config.installation) config.installation = {};
+        config.installation.toolVersion = currentLocalVersion;
 
         if (options.verbose) {
           spinner.stop();
           console.log(
-            chalk.blue(`\n📋 Update check result: ${updateCheck.reason}`)
-          );
-          spinner.start('Update completed (no changes needed)');
-        }
-      } else {
-        if (options.verbose) {
-          spinner.stop();
-          console.log(
-            chalk.blue(`\n📋 Update check result: ${updateCheck.reason}`)
+            chalk.blue(`\n📋 Local tool version changed: ${updateReason}`)
           );
           spinner.start('Updating development environment...');
+        }
+      } else {
+        // Check remote repository for updates
+        const updateCheck = await checkIfUpdateNeeded(config, options.verbose);
+
+        if (!updateCheck.needsUpdate) {
+          shouldExecuteTasks = false;
+          updateReason = updateCheck.reason;
+
+          if (options.verbose) {
+            spinner.stop();
+            console.log(
+              chalk.blue(`\n📋 Update check result: ${updateCheck.reason}`)
+            );
+            spinner.start('Update completed (no changes needed)');
+          }
+        } else {
+          shouldExecuteTasks = true;
+          updateReason = updateCheck.reason;
+
+          if (options.verbose) {
+            spinner.stop();
+            console.log(
+              chalk.blue(`\n📋 Update check result: ${updateCheck.reason}`)
+            );
+            spinner.start('Updating development environment...');
+          }
         }
       }
     } else if (options.verbose) {
       spinner.stop();
-      console.log(
-        chalk.yellow('\n⚠️  Force flag used - bypassing version check')
-      );
+      console.log(chalk.gray('\n📋 Force flag used - bypassing version check'));
       spinner.start('Updating development environment...');
     }
 
