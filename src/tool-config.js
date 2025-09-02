@@ -38,12 +38,20 @@ async function loadToolConfig() {
  * Checks for required files and content to ensure the current directory
  * is a valid project of the specified type.
  *
- * @param {string} projectType - The project type to validate
+ * @param {string|null} projectType - The project type to validate or null for "None"
  * @param {string} tool - The tool identifier
  * @param {Object} config - Full configuration object
  * @throws {Error} If project validation fails
  */
 async function validateProject(projectType, tool, config) {
+  // Skip validation if no project is selected
+  if (!projectType) {
+    console.log(
+      chalk.green('✅ No project selected - skipping project validation')
+    );
+    return;
+  }
+
   const toolSettings = config.tools[tool];
   if (!toolSettings) {
     throw new Error(`Tool configuration not found for: ${tool}`);
@@ -167,12 +175,13 @@ function getAvailableProjectTypes(tool, toolConfig) {
  * Get tasks for the given tool and project type.
  * Combines tool-specific tasks and project-specific tasks into a single object.
  * Each task is marked with its source (tool or project) for tracking.
+ * Filters out tasks that require a project when no project is selected.
  *
  * @param {string} tool - The tool identifier
- * @param {string} projectType - The project type
+ * @param {string|null} projectType - The project type or null for "None"
  * @param {Object} config - Full configuration object
  * @returns {Object} Object containing all available tasks
- * @throws {Error} If tool or project configuration is not found
+ * @throws {Error} If tool configuration is not found
  */
 function getTasks(tool, projectType, config) {
   const toolSettings = config.tools[tool];
@@ -180,16 +189,16 @@ function getTasks(tool, projectType, config) {
     throw new Error(`Tool configuration not found for: ${tool}`);
   }
 
-  const projectConfig = config.projects[projectType];
-  if (!projectConfig) {
-    throw new Error(`Project configuration not found for: ${projectType}`);
-  }
-
   const tasks = {};
 
   // Add tool tasks
   if (toolSettings.tasks) {
     for (const [taskId, task] of Object.entries(toolSettings.tasks)) {
+      // Skip tasks that require a project when no project is selected
+      if (task['requires-project'] && !projectType) {
+        continue;
+      }
+
       tasks[taskId] = {
         ...task,
         id: taskId,
@@ -198,9 +207,11 @@ function getTasks(tool, projectType, config) {
     }
   }
 
-  // Add project tasks (if any)
-  if (projectConfig.tasks) {
-    for (const [taskId, task] of Object.entries(projectConfig.tasks)) {
+  // Add project tasks (if any) - only when project is selected
+  if (projectType && config.projects[projectType]?.tasks) {
+    for (const [taskId, task] of Object.entries(
+      config.projects[projectType].tasks
+    )) {
       tasks[taskId] = {
         ...task,
         id: taskId,

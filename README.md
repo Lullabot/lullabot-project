@@ -50,7 +50,7 @@ lullabot-project init [options]
 
 **Options:**
 - `-t, --tool <tool>` - Specify tool (cursor, windsurf, vscode)
-- `-p, --project <type>` - Specify project type (drupal)
+- `-p, --project <type>` - Specify project type (drupal, none)
 - `--skip-tasks <tasks>` - Skip specific tasks (comma-separated)
 - `--tasks <tasks>` - Execute only specific tasks (comma-separated)
 - `--all-tasks` - Execute all available tasks
@@ -78,6 +78,9 @@ lullabot-project init -t cursor -p drupal --skip-tasks rules
 # Setup without both features
 lullabot-project init -t cursor -p drupal --skip-tasks memory-bank,rules
 
+# Setup without project-specific rules (tool-only)
+lullabot-project init -t cursor -p none
+
 # Execute only specific tasks
 lullabot-project init -t cursor -p drupal --tasks memory-bank
 
@@ -98,7 +101,7 @@ lullabot-project update [options]
 
 **Options:**
 - `-t, --tool <tool>` - Override stored tool setting (optional)
-- `-p, --project <type>` - Override stored project type (optional)
+- `-p, --project <type>` - Override stored project type (drupal, none, optional)
 - `--skip-tasks <tasks>` - Skip specific tasks (comma-separated)
 - `--tasks <tasks>` - Execute only specific tasks (comma-separated)
 - `--all-tasks` - Execute all available tasks
@@ -369,13 +372,26 @@ lullabot-project init --all-tasks
 - No additional configuration needed for rules paths
 - Each tool can have its own project-specific rules in different formats
 
-## Supported Project Types
+## Project Selection
 
-### Drupal
+The tool supports both project-specific and tool-only setups:
+
+### Project Types
+
+#### Drupal
 
 - **Validation**: Checks for `composer.json` with Drupal dependencies
 - **Rules**: Comprehensive Drupal coding standards and AI prompts
 - **Features**: Memory bank integration, project guidelines
+
+#### None (Tool-Only Setup)
+
+- **No Project Validation**: Skips project type validation
+- **Limited Tasks**: Only tool-specific tasks are available
+- **Use Case**: When you want to set up AI tools without project-specific rules
+- **Available Tasks**: Memory bank, VSCode XDebug, AGENTS.md (project rules are disabled)
+
+**Note**: Some tasks require a project to be selected. These tasks will be automatically disabled when "None" is chosen.
 
 ### Adding New Project Types
 

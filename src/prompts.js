@@ -72,12 +72,15 @@ async function getToolSelection(options, config) {
  *
  * @param {Object} options - Command line options
  * @param {Object} config - Full configuration object
- * @returns {Promise<string>} Selected project type identifier
+ * @returns {Promise<string|null>} Selected project type identifier or null for "None"
  * @throws {Error} If project type is not supported
  */
 async function getProjectSelection(options, config) {
   // If project type is provided via command line, validate it
   if (options.project) {
+    if (options.project === 'none') {
+      return null;
+    }
     if (!config.projects?.[options.project]) {
       const availableProjects = Object.keys(config.projects || {}).join(', ');
       throw new Error(
@@ -88,18 +91,20 @@ async function getProjectSelection(options, config) {
   }
 
   // Otherwise, prompt user with available project type choices
-  const projectChoices = Object.entries(config.projects || {}).map(
-    ([key, project]) => ({
+  const projectChoices = [
+    { name: 'None (skip project-specific tasks)', value: null },
+    ...Object.entries(config.projects || {}).map(([key, project]) => ({
       name: project.name,
       value: key
-    })
-  );
+    }))
+  ];
 
   const { project } = await inquirer.prompt([
     {
       type: 'list',
       name: 'project',
-      message: 'What type of project is this?',
+      message:
+        'What type of project is this? (Select "None" to skip project-specific tasks)',
       choices: projectChoices,
       default: 'drupal'
     }

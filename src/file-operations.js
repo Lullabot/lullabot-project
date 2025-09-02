@@ -126,7 +126,24 @@ async function copyFiles(sourceDir, targetDir, verbose = false, items = null) {
     }
 
     await fs.copy(sourceItem, targetItem);
-    copiedFiles.push(path.relative(process.cwd(), targetItem));
+
+    // Store a normalized, safe file path for tracking
+    const normalizedPath = path.relative(process.cwd(), targetItem);
+
+    // Additional safety: ensure the path is within the current directory
+    const resolvedPath = path.resolve(process.cwd(), normalizedPath);
+    const currentDir = process.cwd();
+
+    if (
+      !resolvedPath.startsWith(currentDir + path.sep) &&
+      resolvedPath !== currentDir
+    ) {
+      throw new Error(
+        `Security violation: Attempted to copy file outside project directory: ${resolvedPath}`
+      );
+    }
+
+    copiedFiles.push(normalizedPath);
   }
 
   if (verbose) {
@@ -353,8 +370,8 @@ async function executeCopyFilesTask(task, tool, projectType, verbose = false) {
   // Replace placeholders in source and target paths
   const source = task.source
     .replace('{tool}', tool)
-    .replace('{project-type}', projectType);
-  const target = task.target.replace('{project-type}', projectType);
+    .replace('{project-type}', projectType || '');
+  const target = task.target.replace('{project-type}', projectType || '');
 
   if (verbose) {
     console.log(chalk.gray(`Copying files from ${source} to ${target}`));

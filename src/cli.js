@@ -47,7 +47,13 @@ async function initSetup(options) {
 
       console.log('\n📋 Configuration that would be created:');
       console.log(`• Tool: ${chalk.cyan(config.tool)}`);
-      console.log(`• Project Type: ${chalk.cyan(config.project)}`);
+      if (config.project) {
+        console.log(`• Project Type: ${chalk.cyan(config.project)}`);
+      } else {
+        console.log(
+          `• Project Type: ${chalk.gray('None (project-specific tasks disabled)')}`
+        );
+      }
 
       // Show enabled tasks based on user preferences
       const enabledTasks = Object.entries(config.taskPreferences || {})
@@ -64,7 +70,11 @@ async function initSetup(options) {
 
       // Show validation step if not skipped
       if (!options.skipValidation) {
-        console.log(`• Validate project type: ${config.project}`);
+        if (config.project) {
+          console.log(`• Validate project type: ${config.project}`);
+        } else {
+          console.log(`• Skip project validation (no project selected)`);
+        }
       }
 
       // Show what each enabled task would do
@@ -81,10 +91,10 @@ async function initSetup(options) {
             // Replace placeholders in source and target paths
             const source = task.source
               .replace(/{tool}/g, config.tool)
-              .replace(/{project-type}/g, config.project);
+              .replace(/{project-type}/g, config.project || '');
             const target = task.target
               .replace(/{tool}/g, config.tool)
-              .replace(/{project-type}/g, config.project);
+              .replace(/{project-type}/g, config.project || '');
 
             // Check if this is a Git-based source for special handling
             if (source.startsWith('assets/')) {
@@ -317,9 +327,15 @@ async function updateSetup(options) {
       console.log(
         `• Tool: ${chalk.cyan(existingConfig.project?.tool || existingConfig.tool || 'Unknown')}`
       );
-      console.log(
-        `• Project Type: ${chalk.cyan(existingConfig.project?.type || existingConfig.project || 'Unknown')}`
-      );
+      if (existingConfig.project?.type || existingConfig.project) {
+        console.log(
+          `• Project Type: ${chalk.cyan(existingConfig.project?.type || existingConfig.project)}`
+        );
+      } else {
+        console.log(
+          `• Project Type: ${chalk.gray('None (project-specific tasks disabled)')}`
+        );
+      }
 
       // Show current tasks
       if (existingConfig.features?.taskPreferences) {
@@ -343,9 +359,15 @@ async function updateSetup(options) {
       console.log(
         `• Tool: ${chalk.cyan(config.project?.tool || config.tool || 'Unknown')}`
       );
-      console.log(
-        `• Project Type: ${chalk.cyan(config.project?.type || config.project || 'Unknown')}`
-      );
+      if (config.project?.type || config.project) {
+        console.log(
+          `• Project Type: ${chalk.cyan(config.project?.type || config.project)}`
+        );
+      } else {
+        console.log(
+          `• Project Type: ${chalk.gray('None (project-specific tasks disabled)')}`
+        );
+      }
 
       // Show updated tasks
       if (config.features?.taskPreferences) {
@@ -380,13 +402,13 @@ async function updateSetup(options) {
               .replace(/{tool}/g, config.project?.tool || config.tool)
               .replace(
                 /{project-type}/g,
-                config.project?.type || config.project
+                config.project?.type || config.project || ''
               );
             const target = task.target
               .replace(/{tool}/g, config.project?.tool || config.tool)
               .replace(
                 /{project-type}/g,
-                config.project?.type || config.project
+                config.project?.type || config.project || ''
               );
 
             // Check if this is a Git-based source
@@ -737,9 +759,13 @@ function displaySuccessSummary(config, tasks) {
   console.log(
     `• Tool: ${chalk.cyan(config.project?.tool || config.tool || 'Unknown')}`
   );
-  console.log(
-    `• Project Type: ${chalk.cyan(config.project?.type || config.project || 'Unknown')}`
-  );
+  if (config.project) {
+    console.log(`• Project Type: ${chalk.cyan(config.project)}`);
+  } else {
+    console.log(
+      `• Project Type: ${chalk.gray('None (project-specific tasks disabled)')}`
+    );
+  }
 
   // Display enabled tasks
   const enabledTasks = Object.entries(config.taskPreferences || {})
@@ -795,9 +821,13 @@ function displayUpdateSummary(config, tasks) {
   console.log(
     `• Tool: ${chalk.cyan(config.project?.tool || config.tool || 'Unknown')}`
   );
-  console.log(
-    `• Project Type: ${chalk.cyan(config.project?.type || 'Unknown')}`
-  );
+  if (config.project?.type) {
+    console.log(`• Project Type: ${chalk.cyan(config.project.type)}`);
+  } else {
+    console.log(
+      `• Project Type: ${chalk.gray('None (project-specific tasks disabled)')}`
+    );
+  }
 
   // Display enabled tasks
   if (config.features?.taskPreferences && tasks) {
@@ -1008,13 +1038,38 @@ async function removeSetup(options) {
     if (existingConfig.project?.tool) {
       // Remove specific files that were created by the tool
       if (existingConfig.features?.taskPreferences && existingConfig.files) {
+        console.log(
+          chalk.blue('\n🔍 Validating file paths for safe removal...')
+        );
+
         for (const filePath of existingConfig.files) {
-          const fullPath = path.join(process.cwd(), filePath);
+          // CRITICAL: Validate that the file path is safe and within the current directory
+          const fullPath = path.resolve(process.cwd(), filePath);
+          const currentDir = process.cwd();
+
+          if (options.verbose) {
+            console.log(chalk.gray(`  Checking: ${filePath} -> ${fullPath}`));
+          }
+
+          // Use the improved path validation logic
+          if (!isPathSafe(filePath, currentDir, fullPath)) {
+            console.log(
+              chalk.red(
+                `⚠️  Skipping unsafe file path: ${filePath} (resolves to: ${fullPath})`
+              )
+            );
+            continue;
+          }
+
           if (await fs.pathExists(fullPath)) {
             await fs.remove(fullPath);
             removedFiles.push(filePath);
             if (options.verbose) {
               console.log(chalk.gray(`  Removed: ${fullPath}`));
+            }
+          } else {
+            if (options.verbose) {
+              console.log(chalk.gray(`  File not found: ${fullPath}`));
             }
           }
         }
@@ -1045,6 +1100,58 @@ async function removeSetup(options) {
     spinner.fail('Removal failed');
     throw error;
   }
+}
+
+/**
+ * Validate that a file path is safe for removal.
+ * Prevents path traversal attacks and ensures files can only be removed from the current directory.
+ *
+ * @param {string} filePath - The file path to validate
+ * @param {string} currentDir - The current working directory
+ * @param {string} resolvedPath - The resolved absolute path
+ * @returns {boolean} True if the path is safe, false otherwise
+ */
+function isPathSafe(filePath, currentDir, resolvedPath) {
+  // Check for empty or invalid file paths
+  if (!filePath || filePath.trim() === '') {
+    return false;
+  }
+
+  // Check if the resolved path is within the current directory
+  if (
+    !resolvedPath.startsWith(currentDir + path.sep) &&
+    resolvedPath !== currentDir
+  ) {
+    return false;
+  }
+
+  // Check for dangerous path patterns in the original filePath
+  const dangerousPatterns = [
+    /\.\./g, // Parent directory traversal
+    /\.\.\\/g, // Windows-style parent directory traversal
+    /\.\.%2F/gi, // URL-encoded parent directory traversal
+    /\.\.%5C/gi, // URL-encoded Windows-style parent directory traversal
+    /^\.\.$/, // Just ".."
+    /^\.\.\/$/, // Just "../"
+    /^\.\.\\$/, // Just "..\"
+    /^\.\.\.\./ // Multiple dots that could be malicious
+  ];
+
+  // Check if the filePath contains any dangerous patterns
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(filePath)) {
+      return false;
+    }
+  }
+
+  // Check if the path contains too many directory separators that could indicate traversal
+  const separators = (filePath.match(/[/\\]/g) || []).length;
+  if (separators > 10) {
+    // Arbitrary limit to catch excessive nesting
+    return false;
+  }
+
+  return true;
 }
 
 export { initSetup, updateSetup, showConfig, removeSetup };
