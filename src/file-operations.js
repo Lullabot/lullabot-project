@@ -42,25 +42,51 @@ function getToolVersion() {
  * @returns {Promise<string[]>} Array of copied file paths
  */
 async function copyFilesFromGit(sourcePath, targetPath, verbose = false) {
-  if (verbose) {
-    console.log(
-      chalk.gray(`  Copying files from Git: ${sourcePath} to ${targetPath}...`)
-    );
-  }
-
   try {
+    // Get the list of files that exist before copying
+    const existingFiles = new Set();
+    if (await fs.pathExists(targetPath)) {
+      const existingItems = await fs.readdir(targetPath);
+      for (const item of existingItems) {
+        existingFiles.add(item);
+      }
+    }
+
     // Use Git operations to get files from the repository
     await getFilesFromGit(sourcePath, targetPath, verbose);
 
-    // Get list of copied files for tracking
+    // Get list of copied files for tracking - only the files we actually copied
     const copiedFiles = [];
+
+    // The sourcePath represents the directory we copied from Git
+    // We need to track the files relative to the target directory
     if (await fs.pathExists(targetPath)) {
-      const files = await fs.readdir(targetPath);
-      copiedFiles.push(
-        ...files.map((file) =>
-          path.relative(process.cwd(), path.join(targetPath, file))
-        )
-      );
+      // List the contents of the target directory after copying
+      const targetContents = await fs.readdir(targetPath);
+
+      // Track each copied file/directory - only the ones that weren't there before
+      for (const item of targetContents) {
+        // Only track files that were added by our copy operation
+        if (!existingFiles.has(item)) {
+          const itemPath = path.join(targetPath, item);
+          const relativePath = path.relative(process.cwd(), itemPath);
+
+          // Additional safety: ensure the path is within the current directory
+          const resolvedPath = path.resolve(process.cwd(), relativePath);
+          const currentDir = process.cwd();
+
+          if (
+            !resolvedPath.startsWith(currentDir + path.sep) &&
+            resolvedPath !== currentDir
+          ) {
+            throw new Error(
+              `Security violation: Attempted to track file outside project directory: ${resolvedPath}`
+            );
+          }
+
+          copiedFiles.push(relativePath);
+        }
+      }
     }
 
     if (verbose) {
@@ -167,7 +193,7 @@ async function createConfigFile(config, verbose = false) {
   // Normalize configuration structure for storage
   const configData = {
     project: {
-      type: config.project?.type || config.project,
+      type: config.project?.type || null, // Ensure type is always a simple value
       tool: config.project?.tool || config.tool
     },
     features: {

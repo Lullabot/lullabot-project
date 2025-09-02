@@ -184,7 +184,7 @@ async function initSetup(options) {
     const nestedConfig = {
       project: {
         tool: config.tool,
-        type: config.project
+        type: config.project || null // Ensure null is explicitly set for "none"
       },
       features: {
         taskPreferences: config.taskPreferences
@@ -778,28 +778,14 @@ function displaySuccessSummary(config, tasks) {
     console.log(`• Tasks: ${chalk.gray('❌ None selected')}`);
   }
 
-  // Show file locations for copy-files tasks that were executed
-  const copyTasks = Object.entries(tasks).filter(
-    ([taskId, task]) =>
-      task.type === 'copy-files' && config.taskPreferences[taskId]
-  );
-
-  if (copyTasks.length > 0) {
+  // Show actual files that were copied (not just task configuration)
+  if (config.files && config.files.length > 0) {
     console.log('\n📁 Files copied to:');
-    copyTasks.forEach(([_, task]) => {
-      const source = task.source
-        .replace(/{tool}/g, config.project?.tool || config.tool)
-        .replace(/{project-type}/g, config.project?.type || config.project);
-      const target = task.target
-        .replace(/{tool}/g, config.project?.tool || config.tool)
-        .replace(/{project-type}/g, config.project?.type || config.project);
-
-      if (source.startsWith('assets/')) {
-        console.log(`  • ${target} (from Git: ${source})`);
-      } else {
-        console.log(`  • ${target} (from: ${source})`);
-      }
+    config.files.forEach((filePath) => {
+      console.log(`  • ${filePath}`);
     });
+  } else {
+    console.log('\n📁 Files copied: None');
   }
 
   console.log('\n🎉 Your development environment is ready!');
@@ -861,7 +847,7 @@ function displayConfig(config, options) {
   if (options.json) {
     const jsonOutput = {
       project: {
-        type: config.project?.type || config.project,
+        type: config.project?.type || null, // Always use the type field, fallback to null
         tool: config.project?.tool || config.tool
       },
       features: {
@@ -886,9 +872,13 @@ function displayConfig(config, options) {
   console.log('─'.repeat(50));
 
   console.log(`\n💻 Tool: ${chalk.cyan(config.project?.tool || config.tool)}`);
-  console.log(
-    `📦 Project Type: ${chalk.cyan(config.project?.type || config.project)}`
-  );
+  if (config.project?.type) {
+    console.log(`📦 Project Type: ${chalk.cyan(config.project.type)}`);
+  } else {
+    console.log(
+      `📦 Project Type: ${chalk.gray('None (project-specific tasks disabled)')}`
+    );
+  }
   console.log(
     `📅 Installed: ${chalk.gray(config.installation?.created || 'Unknown')}`
   );
