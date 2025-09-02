@@ -6,11 +6,63 @@ import chalk from 'chalk';
 
 const git = simpleGit();
 
+// Get the tool version from package.json
+function getToolVersion() {
+  try {
+    const packageJsonPath = path.join(process.cwd(), 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+      return packageJson.version;
+    }
+  } catch (error) {
+    // Fallback to default version if package.json can't be read
+  }
+  return '1.0.0'; // Default fallback version
+}
+
 // Configuration for our repository
 const config = {
   repoUrl: 'https://github.com/Lullabot/lullabot-project',
-  branch: 'main'
+  branch: 'main', // Fallback branch if tag doesn't exist
+  version: getToolVersion()
 };
+
+/**
+ * Check if a specific tag exists in the repository.
+ * This can be used to validate that the version tag exists before attempting to clone.
+ *
+ * @param {string} tag - The tag to check
+ * @returns {Promise<boolean>} True if the tag exists, false otherwise
+ */
+export async function tagExists(tag) {
+  try {
+    // Create a temporary directory for checking
+    const tempDir = path.join(
+      os.tmpdir(),
+      `lullabot-project-check-${Date.now()}`
+    );
+
+    // Clone just the tags to check if our version exists
+    await git.clone(config.repoUrl, tempDir, [
+      '--depth',
+      '1',
+      '--no-single-branch',
+      '--tags'
+    ]);
+
+    // Check if our tag exists
+    const tags = await git.cwd(tempDir).tags();
+    const tagExists = tags.all.includes(tag);
+
+    // Clean up
+    await fs.remove(tempDir);
+
+    return tagExists;
+  } catch (error) {
+    // If we can't check tags, assume they don't exist
+    return false;
+  }
+}
 
 /**
  * Clone the repository to a temporary directory and copy specific files.
@@ -37,20 +89,58 @@ export async function cloneAndCopyFiles(
 
   try {
     // Clone the repository with shallow clone for efficiency
+    // Try to use the version tag first, fallback to main branch if tag doesn't exist
     if (verbose) {
       console.log(chalk.gray('Cloning repository...'));
       console.log(
-        chalk.gray(`Cloning from ${config.repoUrl} branch ${config.branch}`)
+        chalk.gray(
+          `Attempting to clone from ${config.repoUrl} tag ${config.version}`
+        )
       );
     }
 
-    await git.clone(config.repoUrl, tempDir, [
-      '--depth',
-      '1',
-      '--single-branch',
-      '--branch',
-      config.branch
-    ]);
+    try {
+      // First try to clone from the version tag
+      await git.clone(config.repoUrl, tempDir, [
+        '--depth',
+        '1',
+        '--single-branch',
+        '--branch',
+        config.version
+      ]);
+
+      if (verbose) {
+        console.log(
+          chalk.green(`✅ Successfully cloned from tag ${config.version}`)
+        );
+      }
+    } catch (tagError) {
+      if (verbose) {
+        console.log(
+          chalk.yellow(
+            `⚠️  Tag ${config.version} not found, falling back to main branch`
+          )
+        );
+        console.log(
+          chalk.gray(`Cloning from ${config.repoUrl} branch ${config.branch}`)
+        );
+      }
+
+      // Fallback to main branch if the tag doesn't exist
+      await git.clone(config.repoUrl, tempDir, [
+        '--depth',
+        '1',
+        '--single-branch',
+        '--branch',
+        config.branch
+      ]);
+
+      if (verbose) {
+        console.log(
+          chalk.yellow(`⚠️  Cloned from fallback branch ${config.branch}`)
+        );
+      }
+    }
 
     // Path to source directory in the cloned repo
     const fullSourcePath = path.join(tempDir, sourcePath);

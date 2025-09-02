@@ -9,6 +9,7 @@ A CLI tool that helps developers set up their development environment with AI to
 - **Memory Bank Setup**: Configure AI memory banks for enhanced development
 - **Project Rules**: Install project-specific coding standards and guidelines
 - **Git-Based File Access**: Pull latest rules and configurations from the repository
+- **Version-Pinned Operations**: Automatically uses Git tags matching the tool version for consistency
 - **Flexible Task System**: Dynamic task execution with package installation, file copying, and command execution
 - **Interactive Setup**: Guided setup process with clear prompts
 - **Update Management**: Easy updates to existing configurations
@@ -660,6 +661,35 @@ npm start update -v
 npm start config --json
 ```
 
+## Version Pinning
+
+The tool automatically ensures version consistency by using Git tags that match the tool version number. This prevents compatibility issues and ensures users always get the exact files that correspond to their tool version.
+
+### How It Works
+
+1. **Automatic Version Detection**: The tool reads its version from `package.json`
+2. **Tag-Based Cloning**: Git operations attempt to clone from the version tag first (e.g., `v1.0.0`)
+3. **Fallback Protection**: If the tag doesn't exist, it falls back to the main branch
+4. **Clear Feedback**: Users see exactly which tag/branch was used for file operations
+
+### Example
+
+```bash
+# Tool version 1.0.0 will attempt to clone from tag 1.0.0
+lullabot-project init -t cursor -p drupal -v
+
+# Output shows:
+# Attempting to clone from https://github.com/Lullabot/lullabot-project tag 1.0.0
+# ✅ Successfully cloned from tag 1.0.0
+```
+
+### Benefits
+
+- **Version Consistency**: Files are always from the exact tool version
+- **Reproducible Results**: Same tool version = same file versions
+- **Compatibility**: Prevents issues from mismatched file versions
+- **Transparency**: Clear visibility into which Git reference was used
+
 ## Contributing
 
 1. Fork the repository
@@ -684,6 +714,7 @@ For issues and questions:
 ### Version 1.0.0
 - Initial release
 - **Git-Based File Access**: Pull latest rules from repository
+- **Version-Pinned Operations**: Automatic Git tag matching for version consistency
 - **Enhanced Task System**: Dynamic task execution with package installation, file copying, and command execution
 - **Flexible File Copying**: Support for copying individual files and/or directories
 - **Backward Compatibility**: All existing configurations continue to work without changes
