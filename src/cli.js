@@ -327,9 +327,9 @@ async function updateSetup(options) {
       console.log(
         `• Tool: ${chalk.cyan(existingConfig.project?.tool || existingConfig.tool || 'Unknown')}`
       );
-      if (existingConfig.project?.type || existingConfig.project) {
+      if (existingConfig.project?.type) {
         console.log(
-          `• Project Type: ${chalk.cyan(existingConfig.project?.type || existingConfig.project)}`
+          `• Project Type: ${chalk.cyan(existingConfig.project.type)}`
         );
       } else {
         console.log(
@@ -359,10 +359,8 @@ async function updateSetup(options) {
       console.log(
         `• Tool: ${chalk.cyan(config.project?.tool || config.tool || 'Unknown')}`
       );
-      if (config.project?.type || config.project) {
-        console.log(
-          `• Project Type: ${chalk.cyan(config.project?.type || config.project)}`
-        );
+      if (config.project?.type) {
+        console.log(`• Project Type: ${chalk.cyan(config.project.type)}`);
       } else {
         console.log(
           `• Project Type: ${chalk.gray('None (project-specific tasks disabled)')}`
@@ -383,6 +381,20 @@ async function updateSetup(options) {
         }
       } else {
         console.log(`• Tasks: ${chalk.gray('❌ None')}`);
+      }
+
+      // Check if updates would be needed
+      console.log('\n🔍 Version check that would be performed:');
+      if (options.force) {
+        console.log('• Force flag used - version check would be bypassed');
+        console.log(
+          '• All enabled tasks would be executed regardless of version'
+        );
+      } else {
+        console.log(
+          '• Tool version would be compared with latest available tag'
+        );
+        console.log('• Tasks would only execute if newer version is available');
       }
 
       console.log('\n🔧 Actions that would be performed:');
@@ -562,29 +574,76 @@ async function updateSetup(options) {
       console.log(chalk.blue('📋 Updated configuration:'), config);
     }
 
-    // Execute tasks based on configuration
+    // Check if updates are needed (unless force flag is used)
+    let shouldExecuteTasks = true;
+    let updateReason = '';
+
+    if (!options.force) {
+      spinner.text = 'Checking for version updates...';
+      const updateCheck = await checkIfUpdateNeeded(config, options.verbose);
+
+      if (!updateCheck.needsUpdate) {
+        shouldExecuteTasks = false;
+        updateReason = updateCheck.reason;
+
+        if (options.verbose) {
+          spinner.stop();
+          console.log(
+            chalk.blue(`\n📋 Update check result: ${updateCheck.reason}`)
+          );
+          spinner.start('Update completed (no changes needed)');
+        }
+      } else {
+        if (options.verbose) {
+          spinner.stop();
+          console.log(
+            chalk.blue(`\n📋 Update check result: ${updateCheck.reason}`)
+          );
+          spinner.start('Updating development environment...');
+        }
+      }
+    } else if (options.verbose) {
+      spinner.stop();
+      console.log(
+        chalk.yellow('\n⚠️  Force flag used - bypassing version check')
+      );
+      spinner.start('Updating development environment...');
+    }
+
+    // Execute tasks based on configuration (only if needed or forced)
     const executedTasks = [];
     const copiedFiles = [];
     const packages = {};
 
-    for (const [taskId, task] of Object.entries(tasks)) {
-      if (config.features?.taskPreferences?.[taskId]) {
-        spinner.text = `Executing ${task.name}...`;
-        const result = await executeTask(
-          task,
-          config.project?.tool || config.tool,
-          config.project?.type || config.project,
-          options.verbose
-        );
-        executedTasks.push(taskId);
+    if (shouldExecuteTasks) {
+      for (const [taskId, task] of Object.entries(tasks)) {
+        if (config.features?.taskPreferences?.[taskId]) {
+          spinner.text = `Executing ${task.name}...`;
+          const result = await executeTask(
+            task,
+            config.project?.tool || config.tool,
+            config.project?.type || config.project,
+            options.verbose
+          );
+          executedTasks.push(taskId);
 
-        // Collect copied files and package info
-        if (task.type === 'copy-files') {
-          copiedFiles.push(...result);
+          // Collect copied files and package info
+          if (task.type === 'copy-files') {
+            copiedFiles.push(...result);
+          }
+          if (result.packageInfo) {
+            packages[taskId] = result.packageInfo;
+          }
         }
-        if (result.packageInfo) {
-          packages[taskId] = result.packageInfo;
-        }
+      }
+    } else {
+      // No tasks executed, but we still need to update the config
+      if (options.verbose) {
+        spinner.stop();
+        console.log(
+          chalk.gray('\n📋 No tasks executed - configuration is up to date')
+        );
+        spinner.start('Updating configuration...');
       }
     }
 
@@ -596,7 +655,11 @@ async function updateSetup(options) {
     spinner.text = 'Updating configuration...';
     await createConfigFile(config, options.verbose);
 
-    spinner.succeed('Update completed successfully!');
+    if (shouldExecuteTasks) {
+      spinner.succeed('Update completed successfully!');
+    } else {
+      spinner.succeed(`Update completed - ${updateReason}`);
+    }
 
     // Display update summary
     displayUpdateSummary(config, tasks);
@@ -743,6 +806,103 @@ async function checkForUpdates(config, options) {
       chalk.yellow('⚠️  Could not check for updates:'),
       error.message
     );
+  }
+}
+
+/**
+ * Check if updates are needed by comparing current tool version with latest available version.
+ * Also checks if package versions have changed.
+ *
+ * @param {Object} config - Current configuration object
+ * @param {boolean} verbose - Whether to show detailed output
+ * @returns {Promise<{needsUpdate: boolean, reason: string, latestVersion: string|null}>}
+ */
+async function checkIfUpdateNeeded(config, verbose = false) {
+  try {
+    // Get the latest available tag from the repository
+    const { getLatestTag } = await import('./git-operations.js');
+    const latestVersion = await getLatestTag();
+
+    if (!latestVersion) {
+      if (verbose) {
+        console.log(
+          chalk.yellow('⚠️  Could not determine latest version from repository')
+        );
+      }
+      return {
+        needsUpdate: false,
+        reason: 'Could not determine latest version',
+        latestVersion: null
+      };
+    }
+
+    const currentVersion = config.installation?.toolVersion || '1.0.0';
+
+    if (verbose) {
+      console.log(chalk.gray(`Current tool version: ${currentVersion}`));
+      console.log(chalk.gray(`Latest available version: ${latestVersion}`));
+    }
+
+    // Compare versions
+    if (currentVersion === latestVersion) {
+      if (verbose) {
+        console.log(chalk.green('✅ Tool is up to date'));
+      }
+      return {
+        needsUpdate: false,
+        reason: 'Tool is up to date',
+        latestVersion
+      };
+    }
+
+    // Check if this is a newer version
+    const currentParts = currentVersion.split('.').map(Number);
+    const latestParts = latestVersion.split('.').map(Number);
+
+    let isNewer = false;
+    for (let i = 0; i < 3; i++) {
+      if (latestParts[i] > currentParts[i]) {
+        isNewer = true;
+        break;
+      } else if (latestParts[i] < currentParts[i]) {
+        break;
+      }
+    }
+
+    if (isNewer) {
+      if (verbose) {
+        console.log(chalk.blue(`🔄 Newer version available: ${latestVersion}`));
+      }
+      return {
+        needsUpdate: true,
+        reason: `Newer version available: ${latestVersion}`,
+        latestVersion
+      };
+    } else {
+      if (verbose) {
+        console.log(
+          chalk.yellow(
+            `⚠️  Current version (${currentVersion}) is newer than latest tag (${latestVersion})`
+          )
+        );
+      }
+      return {
+        needsUpdate: false,
+        reason: 'Current version is newer than latest tag',
+        latestVersion
+      };
+    }
+  } catch (error) {
+    if (verbose) {
+      console.log(
+        chalk.yellow(`⚠️  Error checking for updates: ${error.message}`)
+      );
+    }
+    return {
+      needsUpdate: false,
+      reason: `Error checking updates: ${error.message}`,
+      latestVersion: null
+    };
   }
 }
 

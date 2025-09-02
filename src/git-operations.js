@@ -14,7 +14,7 @@ function getToolVersion() {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
       return packageJson.version;
     }
-  } catch (error) {
+  } catch (_error) {
     // Fallback to default version if package.json can't be read
   }
   return '1.0.0'; // Default fallback version
@@ -26,6 +26,63 @@ const config = {
   branch: 'main', // Fallback branch if tag doesn't exist
   version: getToolVersion()
 };
+
+/**
+ * Get the latest available tag from the repository.
+ * This is used to determine if updates are needed.
+ *
+ * @returns {Promise<string|null>} The latest tag version, or null if no tags found
+ */
+export async function getLatestTag() {
+  try {
+    // Create a temporary directory for checking
+    const tempDir = path.join(
+      os.tmpdir(),
+      `lullabot-project-latest-${Date.now()}`
+    );
+
+    // Clone just the tags to get the latest one
+    await git.clone(config.repoUrl, tempDir, [
+      '--depth',
+      '1',
+      '--no-single-branch',
+      '--tags'
+    ]);
+
+    // Get all tags and find the latest one
+    const tags = await git.cwd(tempDir).tags();
+
+    if (!tags.all || tags.all.length === 0) {
+      await fs.remove(tempDir);
+      return null;
+    }
+
+    // Sort tags by semantic version and get the latest
+    const sortedTags = tags.all
+      .filter((tag) => /^\d+\.\d+\.\d+$/.test(tag)) // Only semantic version tags
+      .sort((a, b) => {
+        const aParts = a.split('.').map(Number);
+        const bParts = b.split('.').map(Number);
+
+        for (let i = 0; i < 3; i++) {
+          if (aParts[i] !== bParts[i]) {
+            return bParts[i] - aParts[i]; // Descending order
+          }
+        }
+        return 0;
+      });
+
+    const latestTag = sortedTags[0] || null;
+
+    // Clean up
+    await fs.remove(tempDir);
+
+    return latestTag;
+  } catch (_error) {
+    // If we can't check tags, return null
+    return null;
+  }
+}
 
 /**
  * Check if a specific tag exists in the repository.
@@ -58,7 +115,7 @@ export async function tagExists(tag) {
     await fs.remove(tempDir);
 
     return tagExists;
-  } catch (error) {
+  } catch (_error) {
     // If we can't check tags, assume they don't exist
     return false;
   }
@@ -114,7 +171,7 @@ export async function cloneAndCopyFiles(
           chalk.green(`✅ Successfully cloned from tag ${config.version}`)
         );
       }
-    } catch (tagError) {
+    } catch (_tagError) {
       if (verbose) {
         console.log(
           chalk.yellow(
