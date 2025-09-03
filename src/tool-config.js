@@ -14,11 +14,74 @@ async function loadConfig() {
   try {
     // Get the directory where the tool is located
     const toolDir = path.dirname(new URL(import.meta.url).pathname);
-    const configPath = path.join(toolDir, '..', 'config', 'config.yml');
+
+    // Handle different path formats (file:// URLs on macOS)
+    let normalizedToolDir = toolDir;
+    if (toolDir.startsWith('/private')) {
+      // macOS sometimes adds /private prefix
+      normalizedToolDir = toolDir.replace('/private', '');
+    }
+
+    const configPath = path.join(
+      normalizedToolDir,
+      '..',
+      'config',
+      'config.yml'
+    );
+
+    // Try to read the config file
     const configContent = await fs.readFile(configPath, 'utf8');
     return yaml.load(configContent);
   } catch (error) {
-    throw new Error(`Failed to load configuration: ${error.message}`);
+    // If the above fails, try alternative path resolution
+    try {
+      // Try using process.cwd() and looking for the tool directory
+      const currentDir = process.cwd();
+      const toolName = 'lullabot-project';
+
+      // Look for the tool directory in common locations
+      const possiblePaths = [
+        path.join(currentDir, '..', toolName, 'config', 'config.yml'),
+        path.join(currentDir, '..', '..', toolName, 'config', 'config.yml'),
+        path.join(
+          process.env.HOME || '',
+          'contrib',
+          toolName,
+          'config',
+          'config.yml'
+        ),
+        path.join(
+          '/Users',
+          process.env.USER || '',
+          'contrib',
+          toolName,
+          'config',
+          'config.yml'
+        )
+      ];
+
+      for (const possiblePath of possiblePaths) {
+        try {
+          if (
+            await fs
+              .access(possiblePath)
+              .then(() => true)
+              .catch(() => false)
+          ) {
+            const configContent = await fs.readFile(possiblePath, 'utf8');
+            return yaml.load(configContent);
+          }
+        } catch (_error) {
+          // Continue to next path
+        }
+      }
+
+      throw new Error('Configuration file not found in any expected location');
+    } catch (fallbackError) {
+      throw new Error(
+        `Failed to load configuration: ${error.message}. Fallback also failed: ${fallbackError.message}`
+      );
+    }
   }
 }
 

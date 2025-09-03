@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 describe('CLI Functional Tests', () => {
-  const cliPath = path.join(__dirname, '..', 'index.js');
+  const cliPath = path.join(__dirname, '..', '..', 'index.js');
 
   it('should show help when no arguments provided', (done) => {
     const child = spawn('node', [cliPath, '--help']);

@@ -1,4 +1,8 @@
-// Test setup file
+// Test setup file for ES modules
+import { jest } from '@jest/globals';
+
+// Make jest globally available
+global.jest = jest;
 
 // Mock console methods to avoid output during tests
 global.console = {
@@ -13,28 +17,20 @@ global.console = {
 const originalExit = process.exit;
 process.exit = jest.fn();
 
-// Restore process.exit after tests
-afterAll(() => {
-  process.exit = originalExit;
+// Setup and teardown for ES modules
+global.beforeAll = beforeAll;
+global.afterAll = afterAll;
+global.beforeEach = beforeEach;
+global.afterEach = afterEach;
+global.describe = describe;
+global.it = it;
+global.expect = expect;
+
+beforeAll(async () => {
+  // Any async setup if needed
 });
 
-// Mock chalk to avoid color codes in test output
-jest.mock('chalk', () => ({
-  blue: jest.fn((text) => text),
-  green: jest.fn((text) => text),
-  red: jest.fn((text) => text),
-  yellow: jest.fn((text) => text),
-  cyan: jest.fn((text) => text),
-  gray: jest.fn((text) => text)
-}));
-
-// Mock ora spinner
-jest.mock('ora', () => {
-  return jest.fn(() => ({
-    start: jest.fn().mockReturnThis(),
-    stop: jest.fn().mockReturnThis(),
-    succeed: jest.fn().mockReturnThis(),
-    fail: jest.fn().mockReturnThis(),
-    text: jest.fn().mockReturnThis()
-  }));
+afterAll(async () => {
+  // Restore process.exit after tests
+  process.exit = originalExit;
 });

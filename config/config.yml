@@ -19,6 +19,7 @@ tools:
         type: "copy-files"
         source: "assets/rules/cursor/{project-type}/"
         target: ".cursor/rules/"
+        items: ["ai-prompts.md", "coding-standards.md", "project-rules.md"]
         required: false
         requires-project: true
         prompt: "Would you like to install project-specific rules and guidelines?"

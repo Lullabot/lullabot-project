@@ -135,7 +135,8 @@ export async function tagExists(tag) {
 export async function cloneAndCopyFiles(
   sourcePath,
   targetPath,
-  verbose = false
+  verbose = false,
+  items = null
 ) {
   // Create a temporary directory with unique timestamp
   const tempDir = path.join(os.tmpdir(), `lullabot-project-${Date.now()}`);
@@ -215,7 +216,37 @@ export async function cloneAndCopyFiles(
     await fs.ensureDir(path.dirname(targetPath));
 
     // Copy directory or file
-    await fs.copy(fullSourcePath, targetPath);
+    if (items && Array.isArray(items) && items.length > 0) {
+      // Copy only specified items
+      if (verbose) {
+        console.log(chalk.gray(`Copying specific items: ${items.join(', ')}`));
+      }
+
+      // Create target directory if it doesn't exist
+      await fs.ensureDir(targetPath);
+
+      // Copy each specified item
+      for (const item of items) {
+        const sourceItemPath = path.join(fullSourcePath, item);
+        const targetItemPath = path.join(targetPath, item);
+
+        if (fs.existsSync(sourceItemPath)) {
+          await fs.copy(sourceItemPath, targetItemPath);
+          if (verbose) {
+            console.log(chalk.gray(`Copied ${item} to ${targetItemPath}`));
+          }
+        } else {
+          if (verbose) {
+            console.log(
+              chalk.yellow(`Warning: Item ${item} not found in source`)
+            );
+          }
+        }
+      }
+    } else {
+      // Copy entire directory
+      await fs.copy(fullSourcePath, targetPath);
+    }
 
     if (verbose) {
       console.log(
@@ -249,8 +280,13 @@ export async function cloneAndCopyFiles(
  * @param {boolean} verbose - Whether to show detailed output
  * @returns {Promise<boolean>} True if operation was successful
  */
-export async function getFilesFromGit(sourcePath, targetPath, verbose = false) {
-  return await cloneAndCopyFiles(sourcePath, targetPath, verbose);
+export async function getFilesFromGit(
+  sourcePath,
+  targetPath,
+  verbose = false,
+  items = null
+) {
+  return await cloneAndCopyFiles(sourcePath, targetPath, verbose, items);
 }
 
 /**

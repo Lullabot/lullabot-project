@@ -1,7 +1,9 @@
+import fs from 'fs-extra';
+import path from 'path';
+
 describe('Module Tests', () => {
   it('should test validation module', async () => {
     // Test validation logic directly
-    const fs = require('fs-extra');
 
     // Mock fs.pathExists to return true for project indicators
     fs.pathExists = jest.fn().mockImplementation((path) => {
@@ -60,8 +62,7 @@ describe('Module Tests', () => {
   });
 
   it('should test file operations logic', async () => {
-    const fs = require('fs-extra');
-    const path = require('path');
+    // fs and path are already imported at the top
 
     // Mock file operations
     fs.pathExists = jest.fn().mockResolvedValue(true);
