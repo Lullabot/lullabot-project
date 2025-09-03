@@ -6,8 +6,7 @@ import {
   initCommand,
   updateCommand,
   configCommand,
-  removeCommand,
-  taskCommand
+  removeCommand
 } from './src/commands.js';
 import { getToolVersion } from './src/file-operations.js';
 
@@ -25,8 +24,8 @@ program
 program
   .command('init')
   .description('Initialize development environment setup')
-  .option('-i, --ide <ide>', 'Specify IDE (cursor)')
-  .option('-p, --project <type>', 'Specify project type (drupal)')
+  .option('-t, --tool <tool>', 'Specify tool (cursor, windsurf, vscode)')
+  .option('-p, --project <type>', 'Specify project type (drupal, none)')
   .option('--skip-tasks <tasks>', 'Skip specific tasks (comma-separated)')
   .option('--tasks <tasks>', 'Only run specific tasks (comma-separated)')
   .option('--all-tasks', 'Run all tasks without prompts')
@@ -38,8 +37,8 @@ program
 program
   .command('update')
   .description('Update existing development environment setup')
-  .option('-i, --ide <ide>', 'Override stored IDE setting')
-  .option('-p, --project <type>', 'Override stored project type')
+  .option('-t, --tool <tool>', 'Override stored tool setting')
+  .option('-p, --project <type>', 'Override stored project type (drupal, none)')
   .option('--skip-tasks <tasks>', 'Skip specific tasks (comma-separated)')
   .option('--tasks <tasks>', 'Only run specific tasks (comma-separated)')
   .option('--all-tasks', 'Run all tasks without prompts')
@@ -63,14 +62,6 @@ program
   .option('--dry-run', 'Show what would be removed without executing')
   .option('-f, --force', 'Force removal without confirmation')
   .action(removeCommand);
-
-program
-  .command('task')
-  .description('Run specific tasks using stored configuration')
-  .argument('<tasks...>', 'Task names to run')
-  .option('-v, --verbose', 'Verbose output')
-  .option('--dry-run', 'Show what would be done without executing')
-  .action(taskCommand);
 
 // Handle errors gracefully
 program.exitOverride();

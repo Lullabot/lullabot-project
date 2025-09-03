@@ -13,7 +13,13 @@ import { getFilesFromGit } from './git-operations.js';
  */
 function getToolVersion() {
   try {
-    const packagePath = path.join(process.cwd(), 'package.json');
+    // Get the tool's package.json path (not the current working directory)
+    // Use the current file's location to find the tool root
+    const currentFile = import.meta.url;
+    const currentDir = path.dirname(new URL(currentFile).pathname);
+    const toolDir = path.resolve(currentDir, '..');
+    const packagePath = path.join(toolDir, 'package.json');
+
     if (fs.existsSync(packagePath)) {
       const packageData = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
       return packageData.version || '1.0.0';
@@ -41,26 +47,82 @@ function getToolVersion() {
  * @param {boolean} verbose - Whether to show detailed output
  * @returns {Promise<string[]>} Array of copied file paths
  */
-async function copyFilesFromGit(sourcePath, targetPath, verbose = false) {
-  if (verbose) {
-    console.log(
-      chalk.gray(`  Copying files from Git: ${sourcePath} to ${targetPath}...`)
-    );
-  }
-
+async function copyFilesFromGit(
+  sourcePath,
+  targetPath,
+  verbose = false,
+  items = null
+) {
   try {
+    // Get the list of files that exist before copying
+    const existingFiles = new Set();
+    try {
+      await fs.access(targetPath);
+      const existingItems = await fs.readdir(targetPath);
+      for (const item of existingItems) {
+        existingFiles.add(item);
+      }
+    } catch (_error) {
+      // Target doesn't exist yet, no existing files
+    }
+
     // Use Git operations to get files from the repository
-    await getFilesFromGit(sourcePath, targetPath, verbose);
+    // Pass items array to filter what gets copied
+    await getFilesFromGit(sourcePath, targetPath, verbose, items);
 
     // Get list of copied files for tracking
     const copiedFiles = [];
-    if (await fs.pathExists(targetPath)) {
-      const files = await fs.readdir(targetPath);
-      copiedFiles.push(
-        ...files.map((file) =>
-          path.relative(process.cwd(), path.join(targetPath, file))
-        )
-      );
+
+    // If we have specific items to copy, track those
+    if (items && Array.isArray(items) && items.length > 0) {
+      for (const item of items) {
+        const itemPath = path.join(targetPath, item);
+        const relativePath = path.relative(process.cwd(), itemPath);
+
+        // Additional safety: ensure the path is within the current directory
+        const resolvedPath = path.resolve(process.cwd(), relativePath);
+        const currentDir = process.cwd();
+
+        if (
+          !resolvedPath.startsWith(currentDir + path.sep) &&
+          resolvedPath !== currentDir
+        ) {
+          throw new Error(
+            `Security violation: Attempted to track file outside project directory: ${resolvedPath}`
+          );
+        }
+
+        copiedFiles.push(relativePath);
+      }
+    } else {
+      // Fallback: track files that weren't there before copying
+      try {
+        await fs.access(targetPath);
+        const targetContents = await fs.readdir(targetPath);
+
+        for (const item of targetContents) {
+          if (!existingFiles.has(item)) {
+            const itemPath = path.join(targetPath, item);
+            const relativePath = path.relative(process.cwd(), itemPath);
+
+            const resolvedPath = path.resolve(process.cwd(), relativePath);
+            const currentDir = process.cwd();
+
+            if (
+              !resolvedPath.startsWith(currentDir + path.sep) &&
+              resolvedPath !== currentDir
+            ) {
+              throw new Error(
+                `Security violation: Attempted to track file outside project directory: ${resolvedPath}`
+              );
+            }
+
+            copiedFiles.push(relativePath);
+          }
+        }
+      } catch (_error) {
+        // Target doesn't exist, no files to track
+      }
     }
 
     if (verbose) {
@@ -85,7 +147,9 @@ async function copyFilesFromGit(sourcePath, targetPath, verbose = false) {
  * @returns {Promise<string[]>} Array of copied file paths
  */
 async function copyFiles(sourceDir, targetDir, verbose = false, items = null) {
-  if (!(await fs.pathExists(sourceDir))) {
+  try {
+    await fs.access(sourceDir);
+  } catch (_error) {
     throw new Error(`Source directory not found: ${sourceDir}`);
   }
 
@@ -112,7 +176,9 @@ async function copyFiles(sourceDir, targetDir, verbose = false, items = null) {
     const targetItem = path.join(targetDir, item);
 
     // Check if the item exists in the source directory
-    if (!(await fs.pathExists(sourceItem))) {
+    try {
+      await fs.access(sourceItem);
+    } catch (_error) {
       if (verbose) {
         console.log(
           chalk.yellow(`  Warning: ${item} not found in source directory`)
@@ -126,7 +192,24 @@ async function copyFiles(sourceDir, targetDir, verbose = false, items = null) {
     }
 
     await fs.copy(sourceItem, targetItem);
-    copiedFiles.push(path.relative(process.cwd(), targetItem));
+
+    // Store a normalized, safe file path for tracking
+    const normalizedPath = path.relative(process.cwd(), targetItem);
+
+    // Additional safety: ensure the path is within the current directory
+    const resolvedPath = path.resolve(process.cwd(), normalizedPath);
+    const currentDir = process.cwd();
+
+    if (
+      !resolvedPath.startsWith(currentDir + path.sep) &&
+      resolvedPath !== currentDir
+    ) {
+      throw new Error(
+        `Security violation: Attempted to copy file outside project directory: ${resolvedPath}`
+      );
+    }
+
+    copiedFiles.push(normalizedPath);
   }
 
   if (verbose) {
@@ -148,10 +231,23 @@ async function copyFiles(sourceDir, targetDir, verbose = false, items = null) {
  */
 async function createConfigFile(config, verbose = false) {
   // Normalize configuration structure for storage
+  let projectType;
+
+  if (config.project?.type !== undefined) {
+    // Use the explicit type if it's defined
+    projectType = config.project.type;
+  } else if (config.project !== undefined) {
+    // Use the project object as the type if no explicit type
+    projectType = config.project;
+  } else {
+    // No project information available
+    projectType = null;
+  }
+
   const configData = {
     project: {
-      type: config.project?.type || config.project,
-      ide: config.project?.ide || config.ide
+      type: projectType, // Handle both object and string, normalize undefined to null
+      tool: config.project?.tool || config.tool
     },
     features: {
       taskPreferences:
@@ -191,7 +287,9 @@ async function createConfigFile(config, verbose = false) {
 async function readConfigFile() {
   const configPath = path.join(process.cwd(), '.lullabot-project.yml');
 
-  if (!(await fs.pathExists(configPath))) {
+  try {
+    await fs.access(configPath);
+  } catch (_error) {
     return null;
   }
 
@@ -249,7 +347,12 @@ async function updateConfigFile(config, verbose = false) {
  */
 async function configExists() {
   const configPath = path.join(process.cwd(), '.lullabot-project.yml');
-  return await fs.pathExists(configPath);
+  try {
+    await fs.access(configPath);
+    return true;
+  } catch (_error) {
+    return false;
+  }
 }
 
 /**
@@ -269,12 +372,12 @@ async function getCreatedFiles(config) {
  * Routes to the appropriate execution function based on task type.
  *
  * @param {Object} task - Task configuration object
- * @param {string} ide - The IDE identifier
+ * @param {string} tool - The tool identifier
  * @param {string} projectType - The project type
  * @param {boolean} verbose - Whether to show detailed output
  * @returns {Promise<Object>} Task execution result
  */
-async function executeTask(task, ide, projectType, verbose = false) {
+async function executeTask(task, tool, projectType, verbose = false) {
   const taskId = task.id;
 
   if (verbose) {
@@ -287,7 +390,7 @@ async function executeTask(task, ide, projectType, verbose = false) {
       case 'command':
         return await executeCommandTask(task, verbose);
       case 'copy-files':
-        return await executeCopyFilesTask(task, ide, projectType, verbose);
+        return await executeCopyFilesTask(task, tool, projectType, verbose);
       case 'package-install':
         return await executePackageInstallTask(task, verbose);
       default:
@@ -344,17 +447,17 @@ async function executeCommandTask(task, verbose = false) {
  * Determines whether to use Git operations or local filesystem based on the source path.
  *
  * @param {Object} task - Task configuration object
- * @param {string} ide - The IDE identifier
+ * @param {string} tool - The tool identifier
  * @param {string} projectType - The project type
  * @param {boolean} verbose - Whether to show detailed output
  * @returns {Promise<string[]>} Array of copied file paths
  */
-async function executeCopyFilesTask(task, ide, projectType, verbose = false) {
+async function executeCopyFilesTask(task, tool, projectType, verbose = false) {
   // Replace placeholders in source and target paths
   const source = task.source
-    .replace('{ide}', ide)
-    .replace('{project-type}', projectType);
-  const target = task.target.replace('{project-type}', projectType);
+    .replace('{tool}', tool)
+    .replace('{project-type}', projectType || '');
+  const target = task.target.replace('{project-type}', projectType || '');
 
   if (verbose) {
     console.log(chalk.gray(`Copying files from ${source} to ${target}`));
@@ -363,14 +466,17 @@ async function executeCopyFilesTask(task, ide, projectType, verbose = false) {
   // Check if this is a Git-based source (starts with assets/)
   if (source.startsWith('assets/')) {
     // Use Git for files from the repository
-    return await copyFilesFromGit(source, target, verbose);
+    const items = task.items || null;
+    const result = await copyFilesFromGit(source, target, verbose, items);
+    return result;
   } else {
     // Use local file system for other files
     const toolDir = path.dirname(new URL(import.meta.url).pathname);
     const fullSourcePath = path.join(toolDir, '..', source);
     const items = task.items || null;
 
-    return await copyFiles(fullSourcePath, target, verbose, items);
+    const result = await copyFiles(fullSourcePath, target, verbose, items);
+    return result;
   }
 }
 

@@ -1,69 +1,82 @@
-import inquirer from 'inquirer';
-import chalk from 'chalk';
+/**
+ * Refactored prompts.js - More testable version
+ *
+ * Key improvements:
+ * - Dependencies injected as parameters
+ * - No dynamic imports
+ * - Pure functions where possible
+ * - Separated business logic from UI logic
+ */
 
 /**
  * Prompt user for configuration options.
- * Collects IDE selection, project type, and task preferences from the user.
+ * Collects tool selection, project type, and task preferences from the user.
  * Handles both interactive prompts and command-line options.
  *
  * @param {Object} options - Command line options that may override prompts
  * @param {Object} config - Full configuration object with available options
+ * @param {Function} promptFn - Function to handle user prompts (inquirer.prompt)
+ * @param {Function} getTasksFn - Function to get tasks (from tool-config)
  * @returns {Promise<Object>} User configuration object
  */
-async function promptUser(options, config) {
+async function promptUser(options, config, promptFn, getTasksFn) {
   const userConfig = {};
 
-  // Get IDE selection
-  userConfig.ide = await getIdeSelection(options, config);
+  // Get tool selection
+  userConfig.tool = await getToolSelection(options, config, promptFn);
 
   // Get project type selection
-  userConfig.project = await getProjectSelection(options, config);
+  userConfig.project = await getProjectSelection(options, config, promptFn);
 
   // Get task preferences
-  const { getTasks } = await import('./ide-config.js');
-  const tasks = getTasks(userConfig.ide, userConfig.project, config);
-  userConfig.taskPreferences = await getTaskPreferences(options, tasks);
+  const tasks = await getTasksFn(userConfig.tool, userConfig.project, config);
+  userConfig.taskPreferences = await getTaskPreferences(
+    options,
+    tasks,
+    promptFn
+  );
 
   return userConfig;
 }
 
 /**
- * Get IDE selection from user or command line options.
- * Validates the IDE against available options and provides interactive selection.
+ * Get tool selection from user or command line options.
+ * Validates the tool against available options and provides interactive selection.
  *
  * @param {Object} options - Command line options
  * @param {Object} config - Full configuration object
- * @returns {Promise<string>} Selected IDE identifier
- * @throws {Error} If IDE is not supported
+ * @param {Function} promptFn - Function to handle user prompts
+ * @returns {Promise<string>} Selected tool identifier
+ * @throws {Error} If tool is not supported
  */
-async function getIdeSelection(options, config) {
-  // If IDE is provided via command line, use it
-  if (options.ide) {
-    if (!config.ides?.[options.ide]) {
+async function getToolSelection(options, config, promptFn) {
+  // If tool is provided via command line, use it
+  if (options.tool) {
+    if (!config.tools?.[options.tool]) {
       throw new Error(
-        `Unsupported IDE: ${options.ide}. Available IDEs: ${Object.keys(config.ides || {}).join(', ')}`
+        `Unsupported tool: ${options.tool}. Available tools: ${Object.keys(config.tools || {}).join(', ')}`
       );
     }
-    return options.ide;
+    return options.tool;
   }
 
-  // Otherwise, prompt user with available IDE choices
-  const ideChoices = Object.keys(config.ides || {}).map((ideKey) => ({
-    name: config.ides[ideKey].name,
-    value: ideKey
+  // Otherwise, prompt user with available tool choices
+  const toolChoices = Object.keys(config.tools || {}).map((toolKey) => ({
+    name: config.tools[toolKey].name,
+    value: toolKey
   }));
 
-  const { ide } = await inquirer.prompt([
+  const { tool } = await promptFn([
     {
       type: 'list',
-      name: 'ide',
-      message: 'Which IDE are you using?',
-      choices: ideChoices,
+      name: 'tool',
+      message: 'Which tool are you using?',
+      choices: toolChoices,
       default: 'cursor'
     }
   ]);
 
-  return ide;
+  return tool;
 }
 
 /**
@@ -72,12 +85,16 @@ async function getIdeSelection(options, config) {
  *
  * @param {Object} options - Command line options
  * @param {Object} config - Full configuration object
- * @returns {Promise<string>} Selected project type identifier
+ * @param {Function} promptFn - Function to handle user prompts
+ * @returns {Promise<string|null>} Selected project type identifier or null for "None"
  * @throws {Error} If project type is not supported
  */
-async function getProjectSelection(options, config) {
+async function getProjectSelection(options, config, promptFn) {
   // If project type is provided via command line, validate it
   if (options.project) {
+    if (options.project === 'none') {
+      return null;
+    }
     if (!config.projects?.[options.project]) {
       const availableProjects = Object.keys(config.projects || {}).join(', ');
       throw new Error(
@@ -88,20 +105,21 @@ async function getProjectSelection(options, config) {
   }
 
   // Otherwise, prompt user with available project type choices
-  const projectChoices = Object.entries(config.projects || {}).map(
-    ([key, project]) => ({
+  const projectChoices = [
+    { name: 'None (skip project-specific tasks)', value: null },
+    ...Object.entries(config.projects || {}).map(([key, project]) => ({
       name: project.name,
       value: key
-    })
-  );
+    }))
+  ];
 
-  const { project } = await inquirer.prompt([
+  const { project } = await promptFn([
     {
       type: 'list',
       name: 'project',
       message: 'What type of project is this?',
       choices: projectChoices,
-      default: 'drupal'
+      default: null
     }
   ]);
 
@@ -110,14 +128,14 @@ async function getProjectSelection(options, config) {
 
 /**
  * Get task preferences from user or command line options.
- * Handles various task selection modes: all tasks, specific tasks, skip tasks, or interactive.
- * Required tasks are always enabled regardless of user preferences.
+ * Handles required tasks, command line overrides, and interactive prompts.
  *
  * @param {Object} options - Command line options
  * @param {Object} tasks - Available tasks object
- * @returns {Promise<Object>} Task preferences object with task IDs as keys and boolean values
+ * @param {Function} promptFn - Function to handle user prompts
+ * @returns {Promise<Object>} Task preferences object
  */
-async function getTaskPreferences(options, tasks) {
+async function getTaskPreferences(options, tasks, promptFn) {
   const taskPreferences = {};
 
   // If --all-tasks is specified, enable all tasks
@@ -152,7 +170,7 @@ async function getTaskPreferences(options, tasks) {
       taskPreferences[taskId] = false;
     } else {
       // Prompt user for optional tasks
-      const answer = await inquirer.prompt([
+      const answer = await promptFn([
         {
           type: 'confirm',
           name: 'enabled',
@@ -173,10 +191,11 @@ async function getTaskPreferences(options, tasks) {
  *
  * @param {string} message - Confirmation message to display
  * @param {boolean} defaultAnswer - Default answer (true for yes, false for no)
+ * @param {Function} promptFn - Function to handle user prompts
  * @returns {Promise<boolean>} True if user confirmed, false otherwise
  */
-async function confirmAction(message, defaultAnswer = false) {
-  const { confirmed } = await inquirer.prompt([
+async function confirmAction(message, defaultAnswer = false, promptFn) {
+  const { confirmed } = await promptFn([
     {
       type: 'confirm',
       name: 'confirmed',
@@ -194,12 +213,21 @@ async function confirmAction(message, defaultAnswer = false) {
  *
  * @param {Object} config - Configuration object to summarize
  * @param {Object} tasks - Available tasks object
+ * @param {Function} promptFn - Function to handle user prompts
+ * @param {Object} chalk - Chalk instance for styling
+ * @param {Function} logFn - Console.log function (can be mocked)
  * @returns {Promise<boolean>} True if user wants to proceed, false otherwise
  */
-async function confirmSetup(config, tasks) {
-  console.log(`\n${chalk.blue('📋 Setup Summary:')}`);
-  console.log(`• IDE: ${chalk.cyan(config.ide)}`);
-  console.log(`• Project Type: ${chalk.cyan(config.project)}`);
+async function confirmSetup(
+  config,
+  tasks,
+  promptFn,
+  chalk,
+  logFn = console.log
+) {
+  logFn(`\n${chalk.blue('📋 Setup Summary:')}`);
+  logFn(`• Tool: ${chalk.cyan(config.tool)}`);
+  logFn(`• Project Type: ${chalk.cyan(config.project)}`);
 
   // Display enabled tasks
   const enabledTasks = Object.entries(config.taskPreferences || {})
@@ -207,12 +235,12 @@ async function confirmSetup(config, tasks) {
     .map(([taskId, _]) => tasks[taskId]?.name || taskId);
 
   if (enabledTasks.length > 0) {
-    console.log(`• Tasks: ${chalk.green('✅')} ${enabledTasks.join(', ')}`);
+    logFn(`• Tasks: ${chalk.green('✅')} ${enabledTasks.join(', ')}`);
   } else {
-    console.log(`• Tasks: ${chalk.gray('❌ None selected')}`);
+    logFn(`• Tasks: ${chalk.gray('❌ None selected')}`);
   }
 
-  const { proceed } = await inquirer.prompt([
+  const { proceed } = await promptFn([
     {
       type: 'confirm',
       name: 'proceed',
@@ -224,4 +252,12 @@ async function confirmSetup(config, tasks) {
   return proceed;
 }
 
-export { promptUser, confirmAction, confirmSetup };
+// Export the refactored functions
+export {
+  promptUser,
+  getToolSelection,
+  getProjectSelection,
+  getTaskPreferences,
+  confirmAction,
+  confirmSetup
+};

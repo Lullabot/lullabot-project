@@ -1,4 +1,4 @@
-ides:
+tools:
   cursor:
     name: "Cursor"
     tasks:
@@ -19,7 +19,9 @@ ides:
         type: "copy-files"
         source: "assets/rules/cursor/{project-type}/"
         target: ".cursor/rules/"
+        items: ["ai-prompts.md", "coding-standards.md", "project-rules.md"]
         required: false
+        requires-project: true
         prompt: "Would you like to install project-specific rules and guidelines?"
       vscode-xdebug:
         name: "VSCode XDebug"
@@ -31,6 +33,15 @@ ides:
         target: ".vscode/"
         required: false
         prompt: "Would you like to set up VSCode XDebug for PHP debugging?"
+      agents:
+        name: "AGENTS.md"
+        description: "Copy AGENTS.md to the project root"
+        type: "copy-files"
+        source: "assets/rules"
+        items: ["AGENTS.md"]
+        target: "./"
+        required: false
+        prompt: "Would you like to install the AGENTS.md file?"
       # git-hooks:
       #   name: "Git Hooks"
       #   description: "Set up Git hooks with Husky"
@@ -42,19 +53,40 @@ ides:
       #     version-command: "npm list husky"
       #   required: false
       #   prompt: "Would you like to set up Git hooks with Husky?"
-  windsurf:
-    name: "Windsurf"
+  # windsurf:
+  #   name: "Windsurf"
+  #   tasks:
+  #     rules:
+  #       name: "Project Rules"
+  #       description: "Copy project-specific rules to .windsurf/rules/"
+  #       type: "copy-files"
+  #       source: "assets/rules/windsurf/{project-type}/"
+  #       target: ".windsurf/rules/"
+  #       # Optional: specify individual files/directories to copy
+  #       # items: ["coding-standards.md", "ai-prompts.md", "project-rules.md"]
+  #       required: false
+  #       prompt: "Would you like to install project-specific rules and guidelines?"
+  claude:
+    name: "Claude Code"
     tasks:
       rules:
         name: "Project Rules"
-        description: "Copy project-specific rules to .windsurf/rules/"
+        description: "Copy project-specific rules to .claude"
         type: "copy-files"
-        source: "assets/rules/windsurf/{project-type}/"
-        target: ".windsurf/rules/"
-        # Optional: specify individual files/directories to copy
-        # items: ["coding-standards.md", "ai-prompts.md", "project-rules.md"]
+        source: "assets/rules/claude/{project-type}/"
+        target: ".claude/"
+        requires-project: true
         required: false
         prompt: "Would you like to install project-specific rules and guidelines?"
+      agents:
+        name: "AGENTS.md"
+        description: "Copy AGENTS.md to the project root"
+        type: "copy-files"
+        source: "assets/rules"
+        items: ["AGENTS.md"]
+        target: "./"
+        required: false
+        prompt: "Would you like to install the AGENTS.md file?"
   vscode:
     name: "VSCode"
     tasks:

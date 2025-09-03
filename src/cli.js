@@ -1,19 +1,13 @@
-import chalk from 'chalk';
-import ora from 'ora';
-import path from 'path';
-import fs from 'fs-extra';
-import { promptUser } from './prompts.js';
-import { loadConfig, loadIdeConfig, validateProject } from './ide-config.js';
-import {
-  executeTask,
-  createConfigFile,
-  readConfigFile,
-  updateConfigFile,
-  getPackageVersion,
-  getToolVersion
-} from './file-operations.js';
-import { confirmAction } from './prompts.js';
-import { isProjectDirectory } from './validation.js';
+/**
+ * Refactored cli.js - More testable version
+ *
+ * Key improvements:
+ * - Dependencies injected as parameters
+ * - Large functions broken down into smaller, focused functions
+ * - Pure functions that can be tested in isolation
+ * - Separated business logic from UI logic
+ * - Extracted utility functions for better testability
+ */
 
 /**
  * Initialize development environment setup with comprehensive configuration.
@@ -23,1262 +17,905 @@ import { isProjectDirectory } from './validation.js';
  * @param {boolean} options.dryRun - Whether to perform a dry run without making changes
  * @param {boolean} options.verbose - Whether to show detailed output
  * @param {boolean} options.skipValidation - Whether to skip project validation
- * @param {string} options.ide - IDE to use (if provided via command line)
+ * @param {string} options.tool - Tool to use (if provided via command line)
  * @param {string} options.project - Project type (if provided via command line)
  * @param {string} options.tasks - Comma-separated list of tasks to enable
  * @param {string} options.skipTasks - Comma-separated list of tasks to skip
  * @param {boolean} options.allTasks - Whether to enable all available tasks
+ * @param {Object} dependencies - Injected dependencies
+ * @param {Function} dependencies.promptUser - Function to get user input
+ * @param {Function} dependencies.loadConfig - Function to load configuration
+ * @param {Function} dependencies.getTasks - Function to get tasks for tool/project
+ * @param {Function} dependencies.validateProject - Function to validate project
+ * @param {Function} dependencies.executeTask - Function to execute tasks
+ * @param {Function} dependencies.createConfigFile - Function to create config file
+ * @param {Object} dependencies.chalk - Chalk instance for styling
+ * @param {Function} dependencies.logFn - Console.log function (can be mocked)
+ * @param {Function} dependencies.spinnerFn - Spinner creation function (can be mocked)
+ * @returns {Promise<void>}
  */
-async function initSetup(options) {
+async function initSetup(options, dependencies) {
+  const {
+    promptUser,
+    loadConfig,
+    getTasks,
+    validateProject,
+    executeTask,
+    createConfigFile,
+    chalk,
+    logFn = console.log,
+    spinnerFn
+  } = dependencies;
+
   // Handle dry run mode - show what would be done without making changes
   if (options.dryRun) {
-    console.log(chalk.blue('🔍 DRY RUN - What would be done:'));
-    console.log('─'.repeat(50));
-
-    try {
-      // Load configuration from config files
-      const fullConfig = await loadConfig();
-
-      // Get user input (interactive or from options)
-      const config = await promptUser(options, fullConfig);
-
-      // Get tasks for the IDE and project type
-      const { getTasks } = await import('./ide-config.js');
-      const tasks = getTasks(config.ide, config.project, fullConfig);
-
-      console.log('\n📋 Configuration that would be created:');
-      console.log(`• IDE: ${chalk.cyan(config.ide)}`);
-      console.log(`• Project Type: ${chalk.cyan(config.project)}`);
-
-      // Show enabled tasks based on user preferences
-      const enabledTasks = Object.entries(config.taskPreferences || {})
-        .filter(([_, enabled]) => enabled)
-        .map(([taskId, _]) => tasks[taskId]?.name || taskId);
-
-      if (enabledTasks.length > 0) {
-        console.log(`• Tasks: ${chalk.green('✅')} ${enabledTasks.join(', ')}`);
-      } else {
-        console.log(`• Tasks: ${chalk.gray('❌ None selected')}`);
-      }
-
-      console.log('\n🔧 Actions that would be performed:');
-
-      // Show validation step if not skipped
-      if (!options.skipValidation) {
-        console.log(`• Validate project type: ${config.project}`);
-      }
-
-      // Show what each enabled task would do
-      for (const [taskId, task] of Object.entries(tasks)) {
-        if (config.taskPreferences[taskId]) {
-          if (task.type === 'command') {
-            console.log(`• Execute: ${task.command}`);
-          } else if (task.type === 'package-install') {
-            console.log(
-              `• Install package: ${task.package.name} (${task.package.type})`
-            );
-            console.log(`  Command: ${task.package['install-command']}`);
-          } else if (task.type === 'copy-files') {
-            // Replace placeholders in source and target paths
-            const source = task.source
-              .replace(/{ide}/g, config.ide)
-              .replace(/{project-type}/g, config.project);
-            const target = task.target
-              .replace(/{ide}/g, config.ide)
-              .replace(/{project-type}/g, config.project);
-
-            // Check if this is a Git-based source for special handling
-            if (source.startsWith('assets/')) {
-              console.log(
-                `• Copy files from Git repository: ${source} to ${target}`
-              );
-            } else {
-              console.log(`• Copy files from ${source} to ${target}`);
-            }
-          }
-        }
-      }
-
-      console.log('• Create configuration file: .lullabot-project.yml');
-
-      console.log(
-        `\n${chalk.yellow('Note: No actual changes would be made.')}`
-      );
-      return;
-    } catch (error) {
-      console.error(chalk.red('❌ Dry run failed:'), error.message);
-      throw error;
-    }
+    await handleDryRun(options, {
+      promptUser,
+      loadConfig,
+      getTasks,
+      chalk,
+      logFn
+    });
+    return;
   }
 
-  const spinner = ora('Initializing development environment...').start();
+  // Create spinner for progress indication
+  const spinner = spinnerFn
+    ? spinnerFn('Initializing development environment...')
+    : null;
 
   try {
     // Load configuration from config files
     const fullConfig = await loadConfig();
 
-    // Stop spinner before showing prompts to avoid overlap
-    spinner.stop();
-
     // Get user input (interactive or from options)
-    const config = await promptUser(options, fullConfig);
+    let config = await promptUser(
+      options,
+      fullConfig,
+      dependencies.promptUser,
+      dependencies.getTasks
+    );
 
-    // Get tasks for the IDE and project type
-    const { getTasks } = await import('./ide-config.js');
-    const tasks = getTasks(config.ide, config.project, fullConfig);
+    // Get tasks for the tool and project type
+    const tasks = await getTasks(config.tool, config.project, fullConfig);
 
-    if (options.verbose) {
-      console.log(chalk.blue('📋 Configuration:'), config);
+    // Validate project if not skipped and project is selected
+    if (!options.skipValidation && config.project) {
+      spinner?.start('Validating project...');
+      await validateProject(config.project, config.tool, fullConfig);
+      spinner?.succeed('Project validation passed');
+    } else if (!options.skipValidation && !config.project) {
+      logFn(chalk.gray('Skipping project validation (no project selected)'));
     }
 
-    // Restart spinner for the actual setup process
-    spinner.start('Setting up development environment...');
+    // Execute enabled tasks
+    spinner?.start('Executing tasks...');
+    const results = await executeEnabledTasks(config, tasks, fullConfig, {
+      executeTask,
+      logFn,
+      chalk
+    });
+    spinner?.succeed('Task execution completed');
 
-    // Check if we're in a project directory (always run this check)
-    spinner.text = 'Checking project directory...';
-    await isProjectDirectory(options.verbose);
-
-    // Validate project type if not skipped
-    if (!options.skipValidation) {
-      spinner.text = 'Validating project type...';
-      await validateProject(config.project, config.ide, fullConfig);
-    }
-
-    // Execute tasks based on user preferences
-    const executedTasks = [];
-    const copiedFiles = [];
-    const packages = {};
-
-    // Process each task that the user has enabled
-    for (const [taskId, task] of Object.entries(tasks)) {
-      if (config.taskPreferences[taskId]) {
-        spinner.text = `Executing ${task.name}...`;
-        const result = await executeTask(
-          task,
-          config.ide,
-          config.project,
-          options.verbose
-        );
-        executedTasks.push(taskId);
-
-        // Collect copied files and package info for tracking
-        if (task.type === 'copy-files') {
-          copiedFiles.push(...result);
-        }
-        if (result.packageInfo) {
-          packages[taskId] = result.packageInfo;
-        }
-      }
-    }
-
-    // Convert flat config to nested structure for storage
-    const nestedConfig = {
-      project: {
-        ide: config.ide,
-        type: config.project
-      },
-      features: {
-        taskPreferences: config.taskPreferences
-      },
-      installation: {
-        created: new Date().toISOString(),
-        updated: new Date().toISOString(),
-        toolVersion: getToolVersion()
-      },
-      files: copiedFiles,
-      packages
-    };
+    // Process task results to extract copied files and package information
+    config = processTaskResults(config, results);
 
     // Create configuration file
-    spinner.text = 'Saving configuration...';
-    await createConfigFile(nestedConfig, options.verbose);
-
-    spinner.succeed('Setup completed successfully!');
+    spinner?.start('Creating configuration file...');
+    await createConfigFile(config, fullConfig);
+    spinner?.succeed('Configuration file created');
 
     // Display success summary
-    displaySuccessSummary(config, tasks);
+    displaySuccessSummary(config, results, { chalk, logFn });
   } catch (error) {
-    spinner.fail('Setup failed');
+    spinner?.fail('Setup failed');
     throw error;
   }
 }
 
 /**
- * Update existing development environment setup with new configuration.
- * Handles both interactive and non-interactive modes, dry runs, and verbose output.
- * Supports partial updates and force mode for corrupted configurations.
- *
- * @param {Object} options - Command line options and flags
- * @param {boolean} options.dryRun - Whether to perform a dry run without making changes
- * @param {boolean} options.verbose - Whether to show detailed output
- * @param {boolean} options.force - Whether to force update even with corrupted config
- * @param {string} options.ide - IDE to use (if provided via command line)
- * @param {string} options.project - Project type (if provided via command line)
- * @param {string} options.tasks - Comma-separated list of tasks to enable
- * @param {string} options.skipTasks - Comma-separated list of tasks to skip
- * @param {boolean} options.allTasks - Whether to enable all available tasks
+ * Handle dry run mode - show what would be done without making changes
  */
-async function updateSetup(options) {
-  // Handle dry run mode - show what would be updated without making changes
-  if (options.dryRun) {
-    console.log(chalk.blue('🔍 DRY RUN - What would be updated:'));
-    console.log('─'.repeat(50));
+async function handleDryRun(options, dependencies) {
+  const { promptUser, loadConfig, getTasks, chalk, logFn } = dependencies;
 
-    try {
-      // Load existing configuration
-      const existingConfig = await readConfigFile();
-      if (!existingConfig && !options.force) {
-        throw new Error(
-          'No existing configuration found. Run "lullabot-project init" to setup.'
-        );
-      }
+  logFn(chalk.blue('🔍 DRY RUN - What would be done:'));
+  logFn('─'.repeat(50));
 
-      // Load configuration
-      const fullConfig = await loadConfig();
+  // Load configuration from config files
+  const fullConfig = await loadConfig();
 
-      // Use stored configuration as base, or create new if force mode
-      let config;
-      if (
-        options.force &&
-        (!existingConfig ||
-          !existingConfig.project ||
-          !existingConfig.project.ide)
-      ) {
-        // Force mode with corrupted config - prompt for new configuration
-        console.log(
-          chalk.yellow(
-            '⚠️  Force mode: Configuration appears corrupted. Recreating...'
-          )
-        );
-        config = await promptUser(options, fullConfig);
-      } else {
-        config = { ...existingConfig };
-      }
-
-      // Only apply overrides if explicitly provided
-      if (options.ide) {
-        if (!fullConfig.ides[options.ide]) {
-          throw new Error(
-            `Unsupported IDE: ${options.ide}. Available IDEs: ${Object.keys(fullConfig.ides).join(', ')}`
-          );
-        }
-        if (!config.project) config.project = {};
-        config.project.ide = options.ide;
-      }
-
-      if (options.project) {
-        if (!fullConfig.projects[options.project]) {
-          const availableProjects = Object.keys(fullConfig.projects).join(', ');
-          throw new Error(
-            `Unsupported project type: ${options.project}. Available projects: ${availableProjects}`
-          );
-        }
-        if (!config.project) config.project = {};
-        config.project.type = options.project;
-      }
-
-      // Get tasks for the IDE and project type
-      const { getTasks } = await import('./ide-config.js');
-      const tasks = getTasks(
-        config.project?.ide || config.ide,
-        config.project?.type || config.project,
-        fullConfig
-      );
-
-      // Handle task options
-      if (options.skipTasks) {
-        const skipTaskList = options.skipTasks.split(',').map((t) => t.trim());
-        if (!config.features) config.features = {};
-        if (!config.features.taskPreferences)
-          config.features.taskPreferences = {};
-        for (const taskId of skipTaskList) {
-          config.features.taskPreferences[taskId] = false;
-        }
-      }
-
-      if (options.tasks) {
-        const taskList = options.tasks.split(',').map((t) => t.trim());
-        if (!config.features) config.features = {};
-        config.features.taskPreferences = {};
-        for (const [taskId] of Object.entries(tasks)) {
-          config.features.taskPreferences[taskId] = taskList.includes(taskId);
-        }
-      }
-
-      if (options.allTasks) {
-        if (!config.features) config.features = {};
-        config.features.taskPreferences = {};
-        for (const [taskId] of Object.entries(tasks)) {
-          config.features.taskPreferences[taskId] = true;
-        }
-      }
-
-      // Display current and updated configuration
-      console.log('\n📋 Current configuration:');
-      console.log(
-        `• IDE: ${chalk.cyan(existingConfig.project?.ide || existingConfig.ide || 'Unknown')}`
-      );
-      console.log(
-        `• Project Type: ${chalk.cyan(existingConfig.project?.type || existingConfig.project || 'Unknown')}`
-      );
-
-      // Show current tasks
-      if (existingConfig.features?.taskPreferences) {
-        const currentTasks = Object.entries(
-          existingConfig.features.taskPreferences
-        )
-          .filter(([_, enabled]) => enabled)
-          .map(([taskId, _]) => tasks[taskId]?.name || taskId);
-        if (currentTasks.length > 0) {
-          console.log(
-            `• Tasks: ${chalk.green('✅')} ${currentTasks.join(', ')}`
-          );
-        } else {
-          console.log(`• Tasks: ${chalk.gray('❌ None')}`);
-        }
-      } else {
-        console.log(`• Tasks: ${chalk.gray('❌ None')}`);
-      }
-
-      console.log('\n📋 Updated configuration:');
-      console.log(
-        `• IDE: ${chalk.cyan(config.project?.ide || config.ide || 'Unknown')}`
-      );
-      console.log(
-        `• Project Type: ${chalk.cyan(config.project?.type || config.project || 'Unknown')}`
-      );
-
-      // Show updated tasks
-      if (config.features?.taskPreferences) {
-        const updatedTasks = Object.entries(config.features.taskPreferences)
-          .filter(([_, enabled]) => enabled)
-          .map(([taskId, _]) => tasks[taskId]?.name || taskId);
-        if (updatedTasks.length > 0) {
-          console.log(
-            `• Tasks: ${chalk.green('✅')} ${updatedTasks.join(', ')}`
-          );
-        } else {
-          console.log(`• Tasks: ${chalk.gray('❌ None')}`);
-        }
-      } else {
-        console.log(`• Tasks: ${chalk.gray('❌ None')}`);
-      }
-
-      console.log('\n🔧 Actions that would be performed:');
-
-      // Show what tasks would be executed
-      for (const [taskId, task] of Object.entries(tasks)) {
-        if (config.features?.taskPreferences?.[taskId]) {
-          if (task.type === 'command') {
-            console.log(`• Execute: ${task.command}`);
-          } else if (task.type === 'package-install') {
-            console.log(
-              `• Install package: ${task.package.name} (${task.package.type})`
-            );
-            console.log(`  Command: ${task.package['install-command']}`);
-          } else if (task.type === 'copy-files') {
-            const source = task.source
-              .replace(/{ide}/g, config.project?.ide || config.ide)
-              .replace(
-                /{project-type}/g,
-                config.project?.type || config.project
-              );
-            const target = task.target
-              .replace(/{ide}/g, config.project?.ide || config.ide)
-              .replace(
-                /{project-type}/g,
-                config.project?.type || config.project
-              );
-
-            // Check if this is a Git-based source
-            if (source.startsWith('assets/')) {
-              console.log(
-                `• Copy files from Git repository: ${source} to ${target}`
-              );
-            } else {
-              console.log(`• Copy files from ${source} to ${target}`);
-            }
-          }
-        }
-      }
-
-      console.log('• Update configuration file: .lullabot-project.yml');
-
-      console.log(
-        `\n${chalk.yellow('Note: No actual changes would be made.')}`
-      );
-      return;
-    } catch (error) {
-      console.error(chalk.red('❌ Dry run failed:'), error.message);
-      throw error;
-    }
-  }
-
-  const spinner = ora('Updating development environment...').start();
-
-  try {
-    // Load existing configuration
-    const existingConfig = await readConfigFile();
-    if (!existingConfig && !options.force) {
-      throw new Error(
-        'No existing configuration found. Run "lullabot-project init" to setup.'
-      );
-    }
-
-    // Load configuration
-    const fullConfig = await loadConfig();
-
-    // Use stored configuration as base, or create new if force mode
-    let config;
-    if (
-      options.force &&
-      (!existingConfig ||
-        !existingConfig.project ||
-        !existingConfig.project.ide)
-    ) {
-      // Force mode with corrupted config - prompt for new configuration
-      spinner.stop();
-      console.log(
-        chalk.yellow(
-          '⚠️  Force mode: Configuration appears corrupted. Recreating...'
-        )
-      );
-      const flatConfig = await promptUser(options, fullConfig);
-
-      // Convert flat config to nested structure
-      config = {
-        project: {
-          ide: flatConfig.ide,
-          type: flatConfig.project
-        },
-        features: {
-          taskPreferences: flatConfig.taskPreferences
-        },
-        installation: {
-          created: new Date().toISOString(),
-          updated: new Date().toISOString(),
-          toolVersion: getToolVersion()
-        },
-        files: [],
-        packages: {}
-      };
-
-      // Restart spinner for the actual update process
-      spinner.start('Updating development environment...');
-    } else {
-      config = { ...existingConfig };
-    }
-
-    // Only apply overrides if explicitly provided
-    if (options.ide) {
-      if (!fullConfig.ides[options.ide]) {
-        throw new Error(
-          `Unsupported IDE: ${options.ide}. Available IDEs: ${Object.keys(fullConfig.ides).join(', ')}`
-        );
-      }
-      if (!config.project) config.project = {};
-      config.project.ide = options.ide;
-    }
-
-    if (options.project) {
-      if (!fullConfig.projects[options.project]) {
-        const availableProjects = Object.keys(fullConfig.projects).join(', ');
-        throw new Error(
-          `Unsupported project type: ${options.project}. Available projects: ${availableProjects}`
-        );
-      }
-      if (!config.project) config.project = {};
-      config.project.type = options.project;
-    }
-
-    // Ensure config has the correct structure for the rest of the function
-    if (!config.project) {
-      config.project = {
-        ide: config.ide,
-        type: config.project
-      };
-    }
-
-    // Get tasks for the IDE and project type
-    const { getTasks } = await import('./ide-config.js');
-    const tasks = getTasks(
-      config.project?.ide || config.ide,
-      config.project?.type || config.project,
-      fullConfig
-    );
-
-    // Handle task options
-    if (options.skipTasks) {
-      const skipTaskList = options.skipTasks.split(',').map((t) => t.trim());
-      if (!config.features) config.features = {};
-      if (!config.features.taskPreferences)
-        config.features.taskPreferences = {};
-      for (const taskId of skipTaskList) {
-        config.features.taskPreferences[taskId] = false;
-      }
-    }
-
-    if (options.tasks) {
-      const taskList = options.tasks.split(',').map((t) => t.trim());
-      if (!config.features) config.features = {};
-      config.features.taskPreferences = {};
-      for (const [taskId] of Object.entries(tasks)) {
-        config.features.taskPreferences[taskId] = taskList.includes(taskId);
-      }
-    }
-
-    if (options.allTasks) {
-      if (!config.features) config.features = {};
-      config.features.taskPreferences = {};
-      for (const [taskId] of Object.entries(tasks)) {
-        config.features.taskPreferences[taskId] = true;
-      }
-    }
-
-    if (options.verbose) {
-      spinner.stop();
-      console.log(chalk.blue('📋 Current configuration:'), existingConfig);
-      console.log(chalk.blue('📋 Updated configuration:'), config);
-    }
-
-    // Execute tasks based on configuration
-    const executedTasks = [];
-    const copiedFiles = [];
-    const packages = {};
-
-    for (const [taskId, task] of Object.entries(tasks)) {
-      if (config.features?.taskPreferences?.[taskId]) {
-        spinner.text = `Executing ${task.name}...`;
-        const result = await executeTask(
-          task,
-          config.project?.ide || config.ide,
-          config.project?.type || config.project,
-          options.verbose
-        );
-        executedTasks.push(taskId);
-
-        // Collect copied files and package info
-        if (task.type === 'copy-files') {
-          copiedFiles.push(...result);
-        }
-        if (result.packageInfo) {
-          packages[taskId] = result.packageInfo;
-        }
-      }
-    }
-
-    // Update config with results
-    config.files = copiedFiles;
-    config.packages = { ...config.packages, ...packages };
-
-    // Update configuration file
-    spinner.text = 'Updating configuration...';
-    await createConfigFile(config, options.verbose);
-
-    spinner.succeed('Update completed successfully!');
-
-    // Display update summary
-    displayUpdateSummary(config, tasks);
-  } catch (error) {
-    spinner.fail('Update failed');
-    throw error;
-  }
-}
-
-/**
- * Show current configuration and status with optional update checking.
- * Displays configuration in both human-readable and JSON formats.
- *
- * @param {Object} options - Command line options and flags
- * @param {boolean} options.checkUpdates - Whether to check for available updates
- * @param {boolean} options.json - Whether to output in JSON format
- * @param {boolean} options.verbose - Whether to show detailed output
- */
-async function showConfig(options) {
-  // Load existing configuration
-  const config = await readConfigFile();
-  if (!config) {
-    console.log(
-      chalk.yellow(
-        '⚠️  No configuration found. Run "lullabot-project init" to setup.'
-      )
-    );
-    return;
-  }
-
-  // Check for updates if requested
-  if (options.checkUpdates) {
-    await checkForUpdates(config, options);
-  }
-
-  // Display configuration
-  displayConfig(config, options);
-}
-
-/**
- * Check for available updates for the tool and installed packages.
- * Compares current versions with latest available versions.
- *
- * @param {Object} config - Current configuration object
- * @param {Object} options - Command line options and flags
- */
-async function checkForUpdates(config, options) {
-  console.log(chalk.blue('\n🔍 Checking for updates...'));
-
-  try {
-    // Load IDE configuration
-    const ideConfig = await loadIdeConfig();
-
-    const updates = [];
-
-    // Check tool version (simplified - in real implementation would check against latest release)
-    const currentVersion = config.installation?.toolVersion || getToolVersion();
-    const latestVersion = getToolVersion();
-    if (currentVersion !== latestVersion) {
-      updates.push({
-        type: 'tool',
-        current: currentVersion,
-        latest: latestVersion,
-        description: 'Tool version update available'
-      });
-    }
-
-    // Check package versions for all enabled tasks
-    if (config.features?.taskPreferences) {
-      for (const [taskId, enabled] of Object.entries(
-        config.features.taskPreferences
-      )) {
-        if (enabled) {
-          const taskPackage = config.packages?.[taskId];
-          if (taskPackage && taskPackage.version !== 'unknown') {
-            try {
-              // Get the IDE to find the package configuration
-              const ide = config.project?.ide || config.ide;
-
-              // Get the full package configuration from the IDE config
-              const ideSettings = ideConfig.ides[ide];
-              const task = ideSettings?.tasks?.[taskId];
-              const packageConfig = task?.package;
-
-              if (packageConfig) {
-                // Get current version from the package using the full configuration
-                const currentPackageInfo = await getPackageVersion(
-                  packageConfig,
-                  false
-                );
-                if (currentPackageInfo.version !== taskPackage.version) {
-                  updates.push({
-                    type: taskId,
-                    current: taskPackage.version,
-                    latest: currentPackageInfo.version,
-                    description: `${taskPackage.name} update available`
-                  });
-                }
-              } else {
-                // Fallback to just using the package name
-                const currentPackageInfo = await getPackageVersion(
-                  taskPackage.name,
-                  false
-                );
-                if (currentPackageInfo.version !== taskPackage.version) {
-                  updates.push({
-                    type: taskId,
-                    current: taskPackage.version,
-                    latest: currentPackageInfo.version,
-                    description: `${taskPackage.name} update available`
-                  });
-                }
-              }
-            } catch (error) {
-              // If we can't check the version, don't add an update
-              if (options.verbose) {
-                console.log(
-                  chalk.gray(
-                    `  Could not check ${taskPackage.name} version: ${error.message}`
-                  )
-                );
-              }
-            }
-          }
-        }
-      }
-    }
-
-    if (updates.length > 0) {
-      console.log(chalk.yellow('\n🔄 Available Updates:'));
-      updates.forEach((update) => {
-        console.log(
-          `• ${update.description}: ${update.current} → ${update.latest}`
-        );
-      });
-      console.log(
-        chalk.gray('\n💡 Run "lullabot-project update" to install updates')
-      );
-    } else {
-      console.log(chalk.green('✅ All components are up to date'));
-    }
-  } catch (error) {
-    console.log(
-      chalk.yellow('⚠️  Could not check for updates:'),
-      error.message
-    );
-  }
-}
-
-/**
- * Display success summary after setup completion.
- * Shows what was configured and where files were placed.
- *
- * @param {Object} config - Configuration object
- * @param {Object} tasks - Available tasks object
- */
-function displaySuccessSummary(config, tasks) {
-  console.log(`\n${chalk.green('✅ Setup completed successfully!')}`);
-  console.log('\n📋 Summary:');
-  console.log(
-    `• IDE: ${chalk.cyan(config.project?.ide || config.ide || 'Unknown')}`
-  );
-  console.log(
-    `• Project Type: ${chalk.cyan(config.project?.type || config.project || 'Unknown')}`
+  // Get user input (interactive or from options)
+  const config = await promptUser(
+    options,
+    fullConfig,
+    dependencies.promptUser,
+    dependencies.getTasks
   );
 
-  // Display enabled tasks
+  // Get tasks for the tool and project type
+  const tasks = getTasks(config.tool, config.project, fullConfig);
+
+  logFn('\n📋 Configuration that would be created:');
+  logFn(`• Tool: ${chalk.cyan(config.tool)}`);
+  if (config.project) {
+    logFn(`• Project Type: ${chalk.cyan(config.project)}`);
+  } else {
+    logFn(
+      `• Project Type: ${chalk.gray('None (project-specific tasks disabled)')}`
+    );
+  }
+
+  // Show enabled tasks based on user preferences
   const enabledTasks = Object.entries(config.taskPreferences || {})
     .filter(([_, enabled]) => enabled)
     .map(([taskId, _]) => tasks[taskId]?.name || taskId);
 
   if (enabledTasks.length > 0) {
-    console.log(`• Tasks: ${chalk.green('✅')} ${enabledTasks.join(', ')}`);
+    logFn(`• Tasks: ${chalk.green('✅')} ${enabledTasks.join(', ')}`);
   } else {
-    console.log(`• Tasks: ${chalk.gray('❌ None selected')}`);
+    logFn(`• Tasks: ${chalk.gray('❌ None selected')}`);
   }
 
-  // Show file locations for copy-files tasks that were executed
-  const copyTasks = Object.entries(tasks).filter(
-    ([taskId, task]) =>
-      task.type === 'copy-files' && config.taskPreferences[taskId]
-  );
+  logFn('\n🔧 Actions that would be performed:');
 
-  if (copyTasks.length > 0) {
-    console.log('\n📁 Files copied to:');
-    copyTasks.forEach(([_, task]) => {
-      const source = task.source
-        .replace(/{ide}/g, config.project?.ide || config.ide)
-        .replace(/{project-type}/g, config.project?.type || config.project);
-      const target = task.target
-        .replace(/{ide}/g, config.project?.ide || config.ide)
-        .replace(/{project-type}/g, config.project?.type || config.project);
-
-      if (source.startsWith('assets/')) {
-        console.log(`  • ${target} (from Git: ${source})`);
-      } else {
-        console.log(`  • ${target} (from: ${source})`);
-      }
-    });
-  }
-
-  console.log('\n🎉 Your development environment is ready!');
-  console.log(
-    chalk.gray('Run "lullabot-project config" to see your current setup.')
-  );
-}
-
-/**
- * Display update summary after update completion.
- * Shows what was updated and current status.
- *
- * @param {Object} config - Configuration object
- * @param {Object} tasks - Available tasks object
- */
-function displayUpdateSummary(config, tasks) {
-  console.log(`\n${chalk.green('✅ Update completed successfully!')}`);
-  console.log('\n📋 Updated:');
-  console.log(
-    `• IDE: ${chalk.cyan(config.project?.ide || config.ide || 'Unknown')}`
-  );
-  console.log(
-    `• Project Type: ${chalk.cyan(config.project?.type || 'Unknown')}`
-  );
-
-  // Display enabled tasks
-  if (config.features?.taskPreferences && tasks) {
-    const enabledTasks = Object.entries(config.features.taskPreferences)
-      .filter(([_, enabled]) => enabled)
-      .map(([taskId, _]) => tasks[taskId]?.name || taskId);
-
-    if (enabledTasks.length > 0) {
-      console.log(
-        `• Tasks: ${chalk.green('✅ Updated')} ${enabledTasks.join(', ')}`
-      );
+  // Show validation step if not skipped
+  if (!options.skipValidation) {
+    if (config.project) {
+      logFn(`• Validate project type: ${config.project}`);
     } else {
-      console.log(`• Tasks: ${chalk.gray('❌ None enabled')}`);
-    }
-  } else {
-    console.log(`• Tasks: ${chalk.gray('❌ None configured')}`);
-  }
-
-  console.log('\n🎉 Your development environment is up to date!');
-}
-
-/**
- * Display current configuration in human-readable or JSON format.
- * Handles both old and new configuration formats for backward compatibility.
- *
- * @param {Object} config - Configuration object
- * @param {Object} options - Command line options and flags
- */
-function displayConfig(config, options) {
-  // Handle JSON output
-  if (options.json) {
-    const jsonOutput = {
-      project: {
-        type: config.project?.type || config.project,
-        ide: config.project?.ide || config.ide
-      },
-      features: {
-        taskPreferences:
-          config.features?.taskPreferences || config.taskPreferences
-      },
-      installation: {
-        created: config.installation?.created || 'Unknown',
-        updated: config.installation?.updated || 'Unknown',
-        toolVersion: config.installation?.toolVersion || 'Unknown'
-      },
-      files: config.files || [],
-      packages: config.packages || {}
-    };
-
-    console.log(JSON.stringify(jsonOutput, null, 2));
-    return;
-  }
-
-  // Regular formatted output
-  console.log('\n📋 Lullabot Project Configuration');
-  console.log('─'.repeat(50));
-
-  console.log(`\n💻 IDE: ${chalk.cyan(config.project?.ide || config.ide)}`);
-  console.log(
-    `📦 Project Type: ${chalk.cyan(config.project?.type || config.project)}`
-  );
-  console.log(
-    `📅 Installed: ${chalk.gray(config.installation?.created || 'Unknown')}`
-  );
-  console.log(
-    `🔄 Last Updated: ${chalk.gray(config.installation?.updated || 'Unknown')}`
-  );
-  console.log(
-    `📦 Tool Version: ${chalk.gray(config.installation?.toolVersion || 'Unknown')}`
-  );
-
-  console.log('\n✅ Features Enabled:');
-
-  // Handle both old and new config formats
-  if (config.features?.taskPreferences) {
-    // New task-based format
-    const enabledTasks = Object.entries(config.features.taskPreferences)
-      .filter(([_, enabled]) => enabled)
-      .map(([taskId, _]) => taskId);
-
-    if (enabledTasks.length > 0) {
-      console.log(`• Tasks: ${chalk.green('✅')} ${enabledTasks.join(', ')}`);
-    } else {
-      console.log(`• Tasks: ${chalk.gray('❌ None')}`);
+      logFn(`• Skip project validation (no project selected)`);
     }
   }
 
-  // Show package information if available
-  if (config.packages && Object.keys(config.packages).length > 0) {
-    console.log('\n📦 Packages:');
-    Object.entries(config.packages).forEach(([_, pkg]) => {
-      const version =
-        pkg.version === 'unknown'
-          ? chalk.gray('unknown')
-          : chalk.cyan(pkg.version);
-      console.log(`• ${pkg.name}: ${version}`);
-    });
-  }
+  // Show what each enabled task would do
+  for (const [taskId, task] of Object.entries(tasks)) {
+    if (config.taskPreferences[taskId]) {
+      if (task.type === 'command') {
+        logFn(`• Execute: ${task.command}`);
+      } else if (task.type === 'package-install') {
+        logFn(`• Install package: ${task.package.name} (${task.package.type})`);
+        logFn(`  Command: ${task.package['install-command']}`);
+      } else if (task.type === 'copy-files') {
+        // Replace placeholders in source and target paths
+        const source = task.source
+          .replace(/{tool}/g, config.tool)
+          .replace(
+            /{project-type}/g,
+            config.project?.type || config.project || ''
+          );
+        const target = task.target
+          .replace(/{tool}/g, config.tool)
+          .replace(
+            /{project-type}/g,
+            config.project?.type || config.project || ''
+          );
 
-  if (options.verbose && config.files && config.files.length > 0) {
-    console.log('\n📁 Files:');
-    config.files.forEach((file) => {
-      if (file) {
-        console.log(`  • ${file}`);
+        logFn(`• Copy files from: ${source} → ${target}`);
       }
-    });
+    }
   }
 
-  console.log('\n📁 Configuration: .lullabot-project.yml');
+  logFn(`\n${'─'.repeat(50)}`);
+  logFn(chalk.yellow('💡 This was a dry run - no changes were made.'));
+  logFn(
+    chalk.yellow('   Run without --dry-run to actually perform the setup.')
+  );
 }
 
 /**
- * Remove all files and configuration created by lullabot-project.
- * Handles both dry run mode and actual removal with confirmation.
+ * Process task execution results to extract copied files and package information.
+ * Updates the configuration object with the results.
+ *
+ * @param {Object} config - Configuration object to update
+ * @param {Array} results - Task execution results
+ * @returns {Object} Updated configuration object
+ */
+function processTaskResults(config, results) {
+  const updatedConfig = { ...config };
+
+  // Initialize arrays/objects if they don't exist
+  updatedConfig.files = updatedConfig.files || [];
+  updatedConfig.packages = updatedConfig.packages || {};
+
+  // Process successful task results
+  for (const result of results) {
+    if (result.success && result.result) {
+      if (result.task.type === 'copy-files') {
+        // Add copied files to the files array
+        if (Array.isArray(result.result)) {
+          updatedConfig.files.push(...result.result);
+        }
+      } else if (result.task.type === 'package-install') {
+        // Add package information
+        if (result.result.packageInfo) {
+          const packageName = result.task.package.name;
+          updatedConfig.packages[packageName] = result.result.packageInfo;
+        }
+      }
+    }
+  }
+
+  return updatedConfig;
+}
+
+/**
+ * Execute enabled tasks and return results
+ */
+async function executeEnabledTasks(config, tasks, fullConfig, dependencies) {
+  const { executeTask, logFn, chalk } = dependencies;
+  const results = [];
+
+  for (const [taskId, task] of Object.entries(tasks)) {
+    if (
+      config.features?.taskPreferences?.[taskId] ||
+      config.taskPreferences?.[taskId]
+    ) {
+      try {
+        const result = await executeTask(
+          task,
+          config.tool,
+          config.project,
+          false
+        );
+        results.push({ taskId, task, result, success: true });
+        logFn(chalk.green(`✅ ${task.name || taskId}: Completed`));
+      } catch (error) {
+        results.push({ taskId, task, error, success: false });
+        logFn(
+          chalk.red(`❌ ${task.name || taskId}: Failed - ${error.message}`)
+        );
+      }
+    }
+  }
+  return results;
+}
+
+/**
+ * Display success summary after setup completion
+ */
+function displaySuccessSummary(config, results, dependencies) {
+  const { chalk, logFn } = dependencies;
+
+  logFn(chalk.green('\n🎉 Setup completed successfully!'));
+  logFn('\n📋 Summary:');
+  logFn(`• Tool: ${chalk.cyan(config.tool)}`);
+  if (config.project) {
+    logFn(`• Project Type: ${chalk.cyan(config.project)}`);
+  } else {
+    logFn(
+      `• Project Type: ${chalk.gray('None (project-specific tasks disabled)')}`
+    );
+  }
+
+  const successfulTasks = results.filter((r) => r.success);
+  const failedTasks = results.filter((r) => !r.success);
+
+  if (successfulTasks.length > 0) {
+    logFn(`• Successful Tasks: ${chalk.green('✅')} ${successfulTasks.length}`);
+    successfulTasks.forEach(({ task }) => {
+      logFn(`  - ${task.name || 'Unknown task'}`);
+    });
+  }
+
+  if (failedTasks.length > 0) {
+    logFn(`• Failed Tasks: ${chalk.red('❌')} ${failedTasks.length}`);
+    failedTasks.forEach(({ task, error }) => {
+      logFn(`  - ${task.name || 'Unknown task'}: ${error.message}`);
+    });
+  }
+
+  logFn(chalk.blue('\n💡 Next steps:'));
+  logFn('  • Review the created configuration file (.lullabot-project.yml)');
+  logFn('  • Customize settings as needed');
+  logFn('  • Run "lullabot-project update" to apply changes');
+}
+
+/**
+ * Update existing development environment setup.
+ * Checks for updates and applies them based on configuration.
  *
  * @param {Object} options - Command line options and flags
  * @param {boolean} options.dryRun - Whether to perform a dry run without making changes
  * @param {boolean} options.verbose - Whether to show detailed output
- * @param {boolean} options.force - Whether to skip confirmation prompt
+ * @param {boolean} options.force - Whether to force update even with corrupted config
+ * @param {string} options.tool - Tool to use (if provided via command line)
+ * @param {string} options.project - Project type (if provided via command line)
+ * @param {string} options.tasks - Comma-separated list of tasks to enable
+ * @param {string} options.skipTasks - Comma-separated list of tasks to skip
+ * @param {boolean} options.allTasks - Whether to enable all available tasks
+ * @param {Object} dependencies - Injected dependencies
+ * @returns {Promise<void>}
  */
-async function removeSetup(options) {
-  // Handle dry run mode - show what would be removed without making changes
-  if (options.dryRun) {
-    console.log(chalk.blue('🔍 DRY RUN - What would be removed:'));
-    console.log('─'.repeat(50));
+async function updateSetup(options, dependencies) {
+  const {
+    loadConfig,
+    readConfigFile,
+    chalk,
+    logFn = console.log,
+    spinnerFn
+  } = dependencies;
 
-    try {
-      // Load existing configuration to see what was created
-      const existingConfig = await readConfigFile();
-      if (!existingConfig) {
-        console.log(
-          chalk.yellow('⚠️  No configuration found. Nothing to remove.')
-        );
-        return;
-      }
-
-      console.log('\n📋 Files that would be removed:');
-
-      // Configuration file
-      console.log('• Configuration file: .lullabot-project.yml');
-
-      // IDE-specific files based on configuration
-      if (existingConfig.project?.ide) {
-        // Show copied files from all copy-files tasks
-        if (existingConfig.features?.taskPreferences && existingConfig.files) {
-          const copyTasks = Object.entries(
-            existingConfig.features.taskPreferences
-          ).filter(([_, enabled]) => enabled);
-
-          if (copyTasks.length > 0) {
-            console.log('• Copied files:');
-            existingConfig.files.forEach((filePath) => {
-              console.log(`  - ${filePath}`);
-            });
-          }
-        }
-      }
-
-      console.log(
-        `\n${chalk.yellow('Note: No actual changes would be made.')}`
-      );
-      return;
-    } catch (error) {
-      console.error(chalk.red('❌ Dry run failed:'), error.message);
-      throw error;
-    }
-  }
-
-  const spinner = ora('Removing lullabot-project files...').start();
+  // Create spinner for progress indication
+  const spinner = spinnerFn ? spinnerFn('Checking for updates...') : null;
 
   try {
-    // Load existing configuration
-    const existingConfig = await readConfigFile();
-    if (!existingConfig) {
-      spinner.stop();
-      console.log(
-        chalk.yellow('⚠️  No configuration found. Nothing to remove.')
-      );
-      return;
-    }
-
-    // Ask for confirmation unless force flag is used
-    if (!options.force) {
-      spinner.stop();
-      const confirmed = await confirmAction(
-        'Are you sure you want to remove all lullabot-project files and configuration?'
-      );
-      if (!confirmed) {
-        console.log(chalk.blue('❌ Removal cancelled.'));
-        return;
-      }
-      spinner.start('Removing lullabot-project files...');
-    }
-
-    const removedFiles = [];
-
-    // Remove configuration file
-    const configPath = path.join(process.cwd(), '.lullabot-project.yml');
-    if (await fs.pathExists(configPath)) {
-      await fs.remove(configPath);
-      removedFiles.push('.lullabot-project.yml');
-      if (options.verbose) {
-        console.log(chalk.gray(`  Removed: ${configPath}`));
-      }
-    }
-
-    // Remove IDE-specific files
-    if (existingConfig.project?.ide) {
-      // Remove specific files that were created by the tool
-      if (existingConfig.features?.taskPreferences && existingConfig.files) {
-        for (const filePath of existingConfig.files) {
-          const fullPath = path.join(process.cwd(), filePath);
-          if (await fs.pathExists(fullPath)) {
-            await fs.remove(fullPath);
-            removedFiles.push(filePath);
-            if (options.verbose) {
-              console.log(chalk.gray(`  Removed: ${fullPath}`));
-            }
-          }
-        }
-      }
-
-      // Note: Memory bank files are typically managed by the memory bank tool itself
-      // We don't remove them as they might be used by other projects
-    }
-
-    spinner.succeed('Removal completed successfully!');
-
-    // Display summary
-    console.log(chalk.green('\n✅ Files removed:'));
-    removedFiles.forEach((file) => {
-      console.log(chalk.green(`  • ${file}`));
-    });
-
-    if (removedFiles.length === 0) {
-      console.log(chalk.yellow('  No files were found to remove.'));
-    }
-
-    console.log(
-      chalk.blue(
-        '\n💡 Note: Memory bank files (if any) were not removed as they may be used by other projects.'
-      )
-    );
-  } catch (error) {
-    spinner.fail('Removal failed');
-    throw error;
-  }
-}
-
-/**
- * Run specific tasks using stored configuration
- */
-async function taskSetup(tasks, options) {
-  // Dry run mode
-  if (options.dryRun) {
-    console.log(chalk.blue('🔍 DRY RUN - What would be done:'));
-    console.log(chalk.blue('─'.repeat(50)));
-
-    try {
-      // Load existing configuration
-      const existingConfig = await readConfigFile();
-      if (!existingConfig) {
-        throw new Error(
-          'No existing configuration found. Run "lullabot-project init" first.'
-        );
-      }
-
-      // Validate configuration has required fields
-      if (!existingConfig.project?.ide || !existingConfig.project?.type) {
-        throw new Error(
-          'Configuration is missing IDE or project type. Run "lullabot-project init" to fix.'
-        );
-      }
-
-      // Load task definitions
-      const fullConfig = await loadConfig();
-      const { getTasks } = await import('./ide-config.js');
-      const ideTasks = getTasks(
-        existingConfig.project.ide,
-        existingConfig.project.type,
-        fullConfig
-      );
-
-      // Validate requested tasks exist
-      const invalidTasks = tasks.filter((task) => !ideTasks[task]);
-      if (invalidTasks.length > 0) {
-        throw new Error(
-          `Invalid tasks for ${existingConfig.project.ide}: ${invalidTasks.join(', ')}`
-        );
-      }
-
-      console.log(
-        chalk.blue(
-          `📋 Configuration: ${existingConfig.project.ide}/${existingConfig.project.type}`
-        )
-      );
-      console.log(chalk.blue(`🔧 Tasks to execute: ${tasks.join(', ')}`));
-
-      // Show what each task would do
-      for (const taskName of tasks) {
-        const task = ideTasks[taskName];
-        console.log(chalk.blue(`\n• ${task.name}:`));
-
-        if (task.type === 'command') {
-          console.log(`  Execute: ${task.command}`);
-        } else if (task.type === 'package-install') {
-          console.log(
-            `  Install package: ${task.package.name} (${task.package.type})`
-          );
-          console.log(`  Command: ${task.package['install-command']}`);
-        } else if (task.type === 'copy-files') {
-          const source = task.source
-            .replace(/{ide}/g, existingConfig.project.ide)
-            .replace(/{project-type}/g, existingConfig.project.type);
-          const target = task.target.replace(
-            /{project-type}/g,
-            existingConfig.project.type
-          );
-
-          // Check if this is a rules task
-          if (source.includes('rules')) {
-            console.log(
-              `  Copy rules for ${existingConfig.project.ide}/${existingConfig.project.type} to ${target}`
-            );
-          } else {
-            console.log(`  Copy files from ${source} to ${target}`);
-          }
-        }
-      }
-
-      console.log(
-        `\n${chalk.yellow('Note: No actual changes would be made.')}`
-      );
-      return;
-    } catch (error) {
-      console.error(chalk.red('❌ Dry run failed:'), error.message);
-      throw error;
-    }
-  }
-
-  const spinner = ora('Executing tasks...').start();
-
-  try {
-    // Load existing configuration
-    const existingConfig = await readConfigFile();
-    if (!existingConfig) {
+    // Load current configuration
+    const currentConfig = await readConfigFile();
+    if (!currentConfig) {
       throw new Error(
         'No existing configuration found. Run "lullabot-project init" first.'
       );
     }
 
-    // Validate configuration has required fields
-    if (!existingConfig.project?.ide || !existingConfig.project.type) {
-      throw new Error(
-        'Configuration is missing IDE or project type. Run "lullabot-project init" to fix.'
-      );
-    }
-
-    // Load task definitions
+    // Load full configuration
     const fullConfig = await loadConfig();
-    const { getTasks } = await import('./ide-config.js');
-    const ideTasks = getTasks(
-      existingConfig.project.ide,
-      existingConfig.project.type,
-      fullConfig
+
+    // Check if update is needed
+    spinner?.start('Checking if update is needed...');
+    const updateNeeded = await checkIfUpdateNeeded(
+      currentConfig,
+      options.verbose,
+      dependencies
     );
 
-    // Validate requested tasks exist
-    const invalidTasks = tasks.filter((task) => !ideTasks[task]);
-    if (invalidTasks.length > 0) {
-      throw new Error(
-        `Invalid tasks for ${existingConfig.project.ide}: ${invalidTasks.join(', ')}`
+    if (!updateNeeded && !options.force) {
+      spinner?.succeed('No updates needed');
+      logFn(chalk.green('✅ Your setup is already up to date!'));
+      return;
+    }
+
+    spinner?.succeed('Update needed');
+
+    // Handle dry run mode
+    if (options.dryRun) {
+      await handleUpdateDryRun(
+        currentConfig,
+        fullConfig,
+        options,
+        dependencies
       );
+      return;
     }
 
-    // Execute tasks in order
-    const results = {};
-    const newFiles = [];
-    const newPackages = {};
+    // Perform the update
+    spinner?.start('Applying updates...');
+    const results = await performUpdate(
+      currentConfig,
+      fullConfig,
+      options,
+      dependencies
+    );
+    spinner?.succeed('Update completed');
 
-    for (const taskName of tasks) {
-      spinner.text = `Executing ${taskName}...`;
-      const task = ideTasks[taskName];
-
-      try {
-        const result = await executeTask(
-          task,
-          existingConfig.project.ide,
-          existingConfig.project.type,
-          options.verbose
-        );
-        results[taskName] = result;
-
-        // Collect new files and package info
-        if (task.type === 'copy-files' && Array.isArray(result)) {
-          newFiles.push(...result);
-        }
-        if (result.packageInfo) {
-          newPackages[taskName] = result.packageInfo;
-        }
-      } catch (error) {
-        spinner.fail(`Task ${taskName} failed`);
-        throw new Error(`Task '${taskName}' failed: ${error.message}`);
-      }
-    }
-
-    // Update configuration
-    spinner.text = 'Updating configuration...';
-
-    // Update task preferences to mark tasks as enabled
-    if (!existingConfig.features) {
-      existingConfig.features = {};
-    }
-    if (!existingConfig.features.taskPreferences) {
-      existingConfig.features.taskPreferences = {};
-    }
-
-    for (const taskName of tasks) {
-      existingConfig.features.taskPreferences[taskName] = true;
-    }
-
-    // Add new files to files array (avoiding duplicates)
-    if (newFiles.length > 0) {
-      if (!existingConfig.files) {
-        existingConfig.files = [];
-      }
-      // Only add files that aren't already in the array
-      for (const newFile of newFiles) {
-        if (!existingConfig.files.includes(newFile)) {
-          existingConfig.files.push(newFile);
-        }
-      }
-    }
-
-    // Add new packages to packages object
-    if (Object.keys(newPackages).length > 0) {
-      if (!existingConfig.packages) {
-        existingConfig.packages = {};
-      }
-      Object.assign(existingConfig.packages, newPackages);
-    }
-
-    // Update installation timestamp
-    if (!existingConfig.installation) {
-      existingConfig.installation = {};
-    }
-    existingConfig.installation.updated = new Date().toISOString();
-
-    // Save updated configuration
-    await updateConfigFile(existingConfig, options.verbose);
-
-    spinner.succeed('Tasks completed successfully!');
-
-    // Display summary
-    console.log(chalk.green('\n✅ Tasks executed:'));
-    tasks.forEach((taskName) => {
-      console.log(chalk.green(`  • ${taskName}`));
-    });
-
-    if (newFiles.length > 0) {
-      console.log(chalk.blue('\n📁 Files added:'));
-      newFiles.forEach((file) => {
-        console.log(chalk.blue(`  • ${file}`));
-      });
-    }
-
-    if (Object.keys(newPackages).length > 0) {
-      console.log(chalk.blue('\n📦 Packages installed:'));
-      Object.entries(newPackages).forEach(([taskName, packageInfo]) => {
-        console.log(
-          chalk.blue(
-            `  • ${taskName}: ${packageInfo.name}@${packageInfo.version}`
-          )
-        );
-      });
-    }
+    // Display update summary
+    displayUpdateSummary(results, { chalk, logFn });
   } catch (error) {
-    spinner.fail('Task execution failed');
+    spinner?.fail('Update failed');
     throw error;
   }
 }
 
-export { initSetup, updateSetup, showConfig, removeSetup, taskSetup };
+/**
+ * Check if an update is needed by comparing versions
+ */
+async function checkIfUpdateNeeded(currentConfig, verbose, dependencies) {
+  const { getToolVersion, logFn, chalk } = dependencies;
+
+  try {
+    const currentToolVersion = currentConfig.toolVersion;
+    const latestToolVersion = await getToolVersion();
+
+    if (verbose) {
+      logFn(chalk.gray(`Current tool version: ${currentToolVersion}`));
+      logFn(chalk.gray(`Latest tool version: ${latestToolVersion}`));
+    }
+
+    return currentToolVersion !== latestToolVersion;
+  } catch (error) {
+    if (verbose) {
+      logFn(
+        chalk.yellow(
+          `Warning: Could not determine tool version: ${error.message}`
+        )
+      );
+    }
+    return true; // Assume update is needed if we can't determine version
+  }
+}
+
+/**
+ * Handle dry run mode for updates
+ */
+async function handleUpdateDryRun(
+  currentConfig,
+  fullConfig,
+  options,
+  dependencies
+) {
+  const { chalk, logFn } = dependencies;
+
+  logFn(chalk.blue('🔍 DRY RUN - What would be updated:'));
+  logFn('─'.repeat(50));
+  logFn(`• Current tool version: ${chalk.cyan(currentConfig.toolVersion)}`);
+  logFn(
+    `• Force update: ${options.force ? chalk.yellow('Yes') : chalk.gray('No')}`
+  );
+  logFn('\n🔧 Actions that would be performed:');
+  logFn('• Re-run all enabled tasks');
+  logFn('• Update configuration file');
+  logFn(`\n${'─'.repeat(50)}`);
+  logFn(chalk.yellow('💡 This was a dry run - no changes were made.'));
+}
+
+/**
+ * Perform the actual update
+ */
+async function performUpdate(currentConfig, fullConfig, options, dependencies) {
+  const { getTasks, executeTask, createConfigFile } = dependencies;
+
+  // Get tasks for the current tool and project
+  const tool = currentConfig.project?.tool || currentConfig.tool;
+  const projectType = currentConfig.project?.type;
+  const tasks = await getTasks(tool, projectType, fullConfig);
+
+  // Execute all enabled tasks
+  const results = [];
+  for (const [taskId, task] of Object.entries(tasks)) {
+    if (
+      currentConfig.features?.taskPreferences?.[taskId] ||
+      currentConfig.taskPreferences?.[taskId]
+    ) {
+      try {
+        const result = await executeTask(task, tool, projectType, false);
+        results.push({ taskId, task, result, success: true });
+      } catch (error) {
+        results.push({ taskId, task, error, success: false });
+      }
+    }
+  }
+
+  // Update configuration file with new tool version
+  await createConfigFile(currentConfig, fullConfig);
+
+  return results;
+}
+
+/**
+ * Display update summary
+ */
+function displayUpdateSummary(results, dependencies) {
+  const { chalk, logFn } = dependencies;
+
+  logFn(chalk.green('\n🎉 Update completed successfully!'));
+
+  const successfulTasks = results.filter((r) => r.success);
+  const failedTasks = results.filter((r) => !r.success);
+
+  if (successfulTasks.length > 0) {
+    logFn(`\n✅ Successfully updated: ${successfulTasks.length} tasks`);
+    successfulTasks.forEach(({ task }) => {
+      logFn(`  • ${task.name || 'Unknown task'}`);
+    });
+  }
+
+  if (failedTasks.length > 0) {
+    logFn(`\n❌ Failed to update: ${failedTasks.length} tasks`);
+    failedTasks.forEach(({ task, error }) => {
+      logFn(`  • ${task.name || 'Unknown task'}: ${error.message}`);
+    });
+  }
+}
+
+/**
+ * Show current configuration and status.
+ *
+ * @param {Object} options - Command line options and flags
+ * @param {boolean} options.checkUpdates - Whether to check for available updates
+ * @param {boolean} options.json - Whether to output in JSON format
+ * @param {boolean} options.verbose - Whether to show detailed output
+ * @param {Object} dependencies - Injected dependencies
+ * @returns {Promise<void>}
+ */
+async function showConfig(options, dependencies) {
+  const {
+    readConfigFile,
+    loadConfig,
+    chalk,
+    logFn = console.log
+  } = dependencies;
+
+  try {
+    // Load current configuration
+    const currentConfig = await readConfigFile();
+    if (!currentConfig) {
+      logFn(
+        chalk.yellow(
+          'No configuration found. Run "lullabot-project init" first.'
+        )
+      );
+      return;
+    }
+
+    // Load full configuration for additional details
+    const fullConfig = await loadConfig();
+
+    if (options.json) {
+      // Output in JSON format
+      const jsonOutput = {
+        tool: currentConfig.tool,
+        project: currentConfig.project,
+        toolVersion: currentConfig.toolVersion,
+        taskPreferences:
+          currentConfig.features?.taskPreferences ||
+          currentConfig.taskPreferences ||
+          {},
+        files: currentConfig.files || [],
+        packages: currentConfig.packages || {}
+      };
+      logFn(JSON.stringify(jsonOutput, null, 2));
+      return;
+    }
+
+    // Display configuration in human-readable format
+    await displayConfig(currentConfig, fullConfig, options, dependencies);
+
+    // Check for updates if requested
+    if (options.checkUpdates) {
+      await checkForUpdates(currentConfig, options, dependencies);
+    }
+  } catch (error) {
+    throw new Error(`Failed to display configuration: ${error.message}`);
+  }
+}
+
+/**
+ * Display configuration in human-readable format
+ */
+async function displayConfig(currentConfig, fullConfig, options, dependencies) {
+  const { chalk, logFn } = dependencies;
+
+  logFn(chalk.blue('📋 Current Configuration:'));
+  logFn('─'.repeat(50));
+  // Handle new configuration structure
+  const tool = currentConfig.project?.tool || currentConfig.tool;
+  const projectType = currentConfig.project?.type;
+
+  logFn(`• Tool: ${chalk.cyan(tool || 'Not specified')}`);
+
+  if (projectType) {
+    logFn(`• Project Type: ${chalk.cyan(projectType)}`);
+  } else {
+    logFn(
+      `• Project Type: ${chalk.gray('None (project-specific tasks disabled)')}`
+    );
+  }
+
+  logFn(
+    `• Tool Version: ${chalk.cyan(currentConfig.installation?.toolVersion || currentConfig.toolVersion || 'Not specified')}`
+  );
+
+  // Show enabled tasks
+  const { getTasks } = dependencies;
+  const tasks = await getTasks(tool, projectType, fullConfig);
+  const enabledTasks = Object.entries(
+    currentConfig.features?.taskPreferences ||
+      currentConfig.taskPreferences ||
+      {}
+  )
+    .filter(([_, enabled]) => enabled)
+    .map(([taskId, _]) => tasks[taskId]?.name || taskId);
+
+  if (enabledTasks.length > 0) {
+    logFn(`• Enabled Tasks: ${chalk.green('✅')} ${enabledTasks.join(', ')}`);
+  } else {
+    logFn(`• Enabled Tasks: ${chalk.gray('❌ None')}`);
+  }
+
+  // Show created files
+  if (currentConfig.files && currentConfig.files.length > 0) {
+    logFn(
+      `• Created Files: ${chalk.green('📁')} ${currentConfig.files.length} files`
+    );
+    if (options.verbose) {
+      currentConfig.files.forEach((file) => {
+        logFn(`  - ${file}`);
+      });
+    }
+  } else {
+    logFn(`• Created Files: ${chalk.gray('📁 None')}`);
+  }
+
+  // Show installed packages
+  if (
+    currentConfig.packages &&
+    Object.keys(currentConfig.packages).length > 0
+  ) {
+    logFn(
+      `• Installed Packages: ${chalk.green('📦')} ${Object.keys(currentConfig.packages).length} packages`
+    );
+    if (options.verbose) {
+      Object.entries(currentConfig.packages).forEach(
+        ([packageName, packageInfo]) => {
+          logFn(`  - ${packageName}@${packageInfo.version}`);
+        }
+      );
+    }
+  } else {
+    logFn(`• Installed Packages: ${chalk.gray('📦 None')}`);
+  }
+}
+
+/**
+ * Check for available updates
+ */
+async function checkForUpdates(currentConfig, options, dependencies) {
+  const { getToolVersion, chalk, logFn } = dependencies;
+
+  try {
+    logFn(`\n${chalk.blue('🔄 Checking for updates...')}`);
+
+    const currentVersion =
+      currentConfig.installation?.toolVersion || currentConfig.toolVersion;
+    const latestVersion = await getToolVersion();
+
+    if (currentVersion === latestVersion) {
+      logFn(chalk.green('✅ You have the latest version!'));
+    } else {
+      logFn(
+        chalk.yellow(
+          `🔄 Update available: ${currentVersion} → ${latestVersion}`
+        )
+      );
+      logFn(chalk.blue('💡 Run "lullabot-project update" to apply updates.'));
+    }
+  } catch (error) {
+    logFn(chalk.yellow(`⚠️  Could not check for updates: ${error.message}`));
+  }
+}
+
+/**
+ * Remove all files and configuration created by lullabot-project.
+ *
+ * @param {Object} options - Command line options and flags
+ * @param {boolean} options.dryRun - Whether to perform a dry run without making changes
+ * @param {boolean} options.verbose - Whether to show detailed output
+ * @param {boolean} options.force - Whether to skip confirmation prompt
+ * @param {Object} dependencies - Injected dependencies
+ * @returns {Promise<void>}
+ */
+async function removeSetup(options, dependencies) {
+  const {
+    readConfigFile,
+    confirmAction,
+    chalk,
+    logFn = console.log,
+    spinnerFn
+  } = dependencies;
+
+  // Create spinner for progress indication
+  const spinner = spinnerFn ? spinnerFn('Preparing for removal...') : null;
+
+  try {
+    // Load current configuration
+    const currentConfig = await readConfigFile();
+    if (!currentConfig) {
+      logFn(chalk.yellow('No configuration found. Nothing to remove.'));
+      return;
+    }
+
+    // Confirm removal unless forced
+    if (!options.force) {
+      const confirmed = await confirmAction(
+        'Are you sure you want to remove all files and configuration created by lullabot-project?',
+        false
+      );
+      if (!confirmed) {
+        logFn(chalk.blue('Removal cancelled.'));
+        return;
+      }
+    }
+
+    // Handle dry run mode
+    if (options.dryRun) {
+      await handleRemoveDryRun(currentConfig, options, dependencies);
+      return;
+    }
+
+    // Perform removal
+    spinner?.start('Removing files...');
+    const removedFiles = await performRemoval(
+      currentConfig,
+      options,
+      dependencies
+    );
+    spinner?.succeed('Removal completed successfully!');
+
+    // Display removal summary
+    displayRemovalSummary(removedFiles, { chalk, logFn });
+  } catch (error) {
+    spinner?.fail('Removal failed');
+    throw error;
+  }
+}
+
+/**
+ * Handle dry run mode for removal
+ */
+async function handleRemoveDryRun(currentConfig, options, dependencies) {
+  const { chalk, logFn } = dependencies;
+
+  logFn(chalk.blue('🔍 DRY RUN - What would be removed:'));
+  logFn('─'.repeat(50));
+  logFn(`• Configuration file: ${chalk.cyan('.lullabot-project.yml')}`);
+
+  if (currentConfig.files && currentConfig.files.length > 0) {
+    logFn(`• Files: ${chalk.red('🗑️')} ${currentConfig.files.length} files`);
+    if (options.verbose) {
+      currentConfig.files.forEach((file) => {
+        logFn(`  - ${file}`);
+      });
+    }
+  } else {
+    logFn(`• Files: ${chalk.gray('🗑️ None')}`);
+  }
+
+  logFn(`\n${'─'.repeat(50)}`);
+  logFn(chalk.yellow('💡 This was a dry run - no changes were made.'));
+}
+
+/**
+ * Perform the actual removal
+ */
+async function performRemoval(currentConfig, options, dependencies) {
+  const { fs, path, chalk, logFn } = dependencies;
+  const removedFiles = [];
+
+  // Remove configuration file
+  if (await fs.pathExists('.lullabot-project.yml')) {
+    await fs.remove('.lullabot-project.yml');
+    if (options.verbose) {
+      logFn(chalk.gray('  Removed: .lullabot-project.yml'));
+    }
+  }
+
+  // Remove created files
+  if (currentConfig.files && currentConfig.files.length > 0) {
+    for (const filePath of currentConfig.files) {
+      const fullPath = path.resolve(filePath);
+
+      if (options.verbose) {
+        logFn(
+          chalk.gray(
+            `  Debug: filePath=${filePath}, fullPath=${fullPath}, cwd=${process.cwd()}`
+          )
+        );
+      }
+
+      // Validate path safety
+      if (!isPathSafe(filePath, process.cwd(), fullPath, path)) {
+        logFn(chalk.yellow(`  Skipped (unsafe path): ${filePath}`));
+        continue;
+      }
+
+      if (await fs.pathExists(fullPath)) {
+        await fs.remove(fullPath);
+        removedFiles.push(filePath);
+        if (options.verbose) {
+          logFn(chalk.gray(`  Removed: ${fullPath}`));
+        }
+      } else {
+        if (options.verbose) {
+          logFn(chalk.gray(`  File not found: ${fullPath}`));
+        }
+      }
+    }
+  }
+
+  return removedFiles;
+}
+
+/**
+ * Display removal summary
+ */
+function displayRemovalSummary(removedFiles, dependencies) {
+  const { chalk, logFn } = dependencies;
+
+  logFn(chalk.green('\n✅ Files removed:'));
+  removedFiles.forEach((file) => {
+    logFn(chalk.green(`  • ${file}`));
+  });
+
+  if (removedFiles.length === 0) {
+    logFn(chalk.yellow('  No files were found to remove.'));
+  }
+
+  logFn(
+    chalk.blue(
+      '\n💡 Note: Memory bank files (if any) were not removed as they may be used by other projects.'
+    )
+  );
+}
+
+/**
+ * Validate that a file path is safe for removal.
+ * Prevents path traversal attacks and ensures files can only be removed from the current directory.
+ *
+ * @param {string} filePath - The file path to validate
+ * @param {string} currentDir - The current working directory
+ * @param {string} resolvedPath - The resolved absolute path
+ * @returns {boolean} True if the path is safe, false otherwise
+ */
+function isPathSafe(filePath, currentDir, resolvedPath, path) {
+  // Check for empty or invalid file paths
+  if (!filePath || filePath.trim() === '') {
+    return false;
+  }
+
+  // Check if the resolved path is within the current directory
+  if (
+    !resolvedPath.startsWith(currentDir + path.sep) &&
+    resolvedPath !== currentDir
+  ) {
+    return false;
+  }
+
+  // Check for dangerous path patterns in the original filePath
+  const dangerousPatterns = [
+    /\.\./g, // Parent directory traversal
+    /\.\.\\/g, // Windows-style parent directory traversal
+    /\.\.%2F/gi, // URL-encoded parent directory traversal
+    /\.\.%5C/gi, // URL-encoded Windows-style parent directory traversal
+    /^\.\.$/, // Just ".."
+    /^\.\.\/$/, // Just "../"
+    /^\.\.\\$/, // Just "..\"
+    /^\.\.\.\./ // Multiple dots that could be malicious
+  ];
+
+  // Check if the filePath contains any dangerous patterns
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(filePath)) {
+      return false;
+    }
+  }
+
+  // Check if the path contains too many directory separators that could indicate traversal
+  const separators = (filePath.match(/[/\\]/g) || []).length;
+  if (separators > 10) {
+    // Arbitrary limit to catch excessive nesting
+    return false;
+  }
+
+  return true;
+}
+
+// Export the refactored functions
+export {
+  initSetup,
+  updateSetup,
+  showConfig,
+  removeSetup,
+  // Export utility functions for testing
+  handleDryRun,
+  executeEnabledTasks,
+  displaySuccessSummary,
+  checkIfUpdateNeeded,
+  handleUpdateDryRun,
+  performUpdate,
+  displayUpdateSummary,
+  displayConfig,
+  checkForUpdates,
+  handleRemoveDryRun,
+  performRemoval,
+  displayRemovalSummary,
+  isPathSafe
+};
+// Export a factory function for backward compatibility
+export function createCLI(dependencies) {
+  return {
+    initSetup: (options) => initSetup(options, dependencies),
+    updateSetup: (options) => updateSetup(options, dependencies),
+    showConfig: (options) => showConfig(options, dependencies),
+    removeSetup: (options) => removeSetup(options, dependencies)
+  };
+}
