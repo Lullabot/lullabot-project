@@ -90,11 +90,17 @@ async function initSetup(options, dependencies) {
 
     // Execute enabled tasks
     spinner?.start('Executing tasks...');
-    const results = await executeEnabledTasks(config, tasks, fullConfig, {
-      executeTask,
-      logFn,
-      chalk
-    });
+    const results = await executeEnabledTasks(
+      config,
+      tasks,
+      fullConfig,
+      options,
+      {
+        executeTask,
+        logFn,
+        chalk
+      }
+    );
     spinner?.succeed('Task execution completed');
 
     // Process task results to extract copied files and package information
@@ -242,7 +248,13 @@ function processTaskResults(config, results) {
 /**
  * Execute enabled tasks and return results
  */
-async function executeEnabledTasks(config, tasks, fullConfig, dependencies) {
+async function executeEnabledTasks(
+  config,
+  tasks,
+  fullConfig,
+  options,
+  dependencies
+) {
   const { executeTask, logFn, chalk } = dependencies;
   const results = [];
 
@@ -256,7 +268,7 @@ async function executeEnabledTasks(config, tasks, fullConfig, dependencies) {
           task,
           config.tool,
           config.project,
-          false
+          options.verbose || false
         );
         results.push({ taskId, task, result, success: true });
         logFn(chalk.green(`✅ ${task.name || taskId}: Completed`));

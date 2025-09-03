@@ -51,9 +51,9 @@ async function initCommand(options) {
         const { validateProject } = await import('./tool-config.js');
         return validateProject(projectType, tool, config);
       },
-      executeTask: async (task, fullConfig, config) => {
+      executeTask: async (task, tool, projectType, verbose) => {
         const { executeTask } = await import('./file-operations.js');
-        return executeTask(task, fullConfig, config);
+        return executeTask(task, tool, projectType, verbose);
       },
       createConfigFile: async (config, fullConfig) => {
         const { createConfigFile } = await import('./file-operations.js');
@@ -134,9 +134,9 @@ async function updateCommand(options) {
         const { getTasks } = await import('./tool-config.js');
         return getTasks(tool, project, config);
       },
-      executeTask: async (task, fullConfig, config) => {
+      executeTask: async (task, tool, projectType, verbose) => {
         const { executeTask } = await import('./file-operations.js');
-        return executeTask(task, fullConfig, config);
+        return executeTask(task, tool, projectType, verbose);
       },
       createConfigFile: async (config, fullConfig) => {
         const { createConfigFile } = await import('./file-operations.js');

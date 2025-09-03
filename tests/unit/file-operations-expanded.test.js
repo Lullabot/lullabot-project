@@ -70,7 +70,7 @@ describe('File Operations Module - Expanded', () => {
       const content = await fs.readFile(configPath, 'utf8');
       expect(content).toContain('drupal');
       expect(content).toContain('cursor');
-      expect(content).toContain('2.0.0');
+      expect(content).toContain('2.0.1');
     });
 
     it('should handle null project type correctly', async () => {
@@ -128,7 +128,7 @@ describe('File Operations Module - Expanded', () => {
       const content = await fs.readFile(configPath, 'utf8');
       expect(content).toContain('file1.txt');
       expect(content).toContain('file2.txt');
-      expect(content).toContain('2.0.0');
+      expect(content).toContain('2.0.1');
     });
   });
 
