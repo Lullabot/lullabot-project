@@ -39,7 +39,7 @@ tools:
         type: "copy-files"
         source: "assets/rules"
         items: ["AGENTS.md"]
-        target: "./"
+        target: "."
         required: false
         prompt: "Would you like to install the AGENTS.md file?"
       # git-hooks:
@@ -84,7 +84,7 @@ tools:
         type: "copy-files"
         source: "assets/rules"
         items: ["AGENTS.md"]
-        target: "./"
+        target: "."
         required: false
         prompt: "Would you like to install the AGENTS.md file?"
   vscode:

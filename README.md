@@ -45,6 +45,9 @@ Our comprehensive test suite provides excellent coverage:
 - **Comprehensive edge case testing** for robust operation
 - **Memory bank integration** working reliably
 - **Project rules installation** with proper validation
+- **AGENTS.md task** now working correctly with proper Git tag resolution
+- **Verbose flag** working properly for comprehensive debugging
+- **Parameter passing** fixed across all function calls
 
 ## Installation
 
@@ -777,6 +780,9 @@ For issues and questions:
 - **Project Rules Installation** - Robust project rules installation with validation
 - **Comprehensive Edge Case Testing** - Testing of failure scenarios and edge cases
 - **No Known Regressions** - Stable and reliable operation across all features
+- **AGENTS.md Task Fixed** - File copying now works correctly with proper Git tag resolution
+- **Verbose Flag Working** - Comprehensive debug output for troubleshooting
+- **Parameter Passing Fixed** - All function calls now use correct parameters
 
 ### Version 1.0.0
 - Initial release

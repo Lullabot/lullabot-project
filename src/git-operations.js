@@ -9,7 +9,9 @@ const git = simpleGit();
 // Get the tool version from package.json
 function getToolVersion() {
   try {
-    const packageJsonPath = path.join(process.cwd(), 'package.json');
+    // Use import.meta.url to get the tool's directory, not the current working directory
+    const toolDir = path.dirname(new URL(import.meta.url).pathname);
+    const packageJsonPath = path.join(toolDir, '..', 'package.json');
     if (fs.existsSync(packageJsonPath)) {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
       return packageJson.version;

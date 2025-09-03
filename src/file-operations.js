@@ -66,9 +66,34 @@ async function copyFilesFromGit(
       // Target doesn't exist yet, no existing files
     }
 
+    if (verbose) {
+      console.log(
+        chalk.gray(`Starting Git copy from ${sourcePath} to ${targetPath}`)
+      );
+    }
+
     // Use Git operations to get files from the repository
     // Pass items array to filter what gets copied
-    await getFilesFromGit(sourcePath, targetPath, verbose, items);
+    try {
+      const gitResult = await getFilesFromGit(
+        sourcePath,
+        targetPath,
+        verbose,
+        items
+      );
+
+      if (verbose) {
+        console.log(chalk.gray(`Git operation result: ${gitResult}`));
+      }
+    } catch (gitError) {
+      if (verbose) {
+        console.log(
+          chalk.red(`Git operation failed with error: ${gitError.message}`)
+        );
+        console.log(chalk.red(`Error stack: ${gitError.stack}`));
+      }
+      throw gitError;
+    }
 
     // Get list of copied files for tracking
     const copiedFiles = [];
@@ -127,10 +152,14 @@ async function copyFilesFromGit(
 
     if (verbose) {
       console.log(chalk.green(`✅ Copied files to ${targetPath}`));
+      console.log(chalk.gray(`Tracked ${copiedFiles.length} files`));
     }
 
     return copiedFiles;
   } catch (error) {
+    if (verbose) {
+      console.log(chalk.red(`Git copy failed: ${error.message}`));
+    }
     throw new Error(`Failed to copy files from Git: ${error.message}`);
   }
 }
