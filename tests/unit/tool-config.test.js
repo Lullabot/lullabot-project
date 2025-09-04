@@ -98,7 +98,7 @@ describe('Tool Config Module', () => {
   describe('Error handling', () => {
     it('should handle missing tool configuration gracefully', async () => {
       const config = await toolConfig.loadConfig();
-      
+
       expect(() => {
         toolConfig.getToolSettings('nonexistent-tool', config);
       }).toThrow('Tool configuration not found for: nonexistent-tool');
@@ -106,7 +106,7 @@ describe('Tool Config Module', () => {
 
     it('should handle missing project configuration gracefully', async () => {
       const config = await toolConfig.loadConfig();
-      
+
       // getTasks doesn't validate project existence, so this should not throw
       // It will return tool tasks but no project-specific tasks
       const tasks = toolConfig.getTasks('cursor', 'nonexistent-project', config);
@@ -121,7 +121,7 @@ describe('Tool Config Module', () => {
 
     it('should handle missing tool in getTasks gracefully', async () => {
       const config = await toolConfig.loadConfig();
-      
+
       expect(() => {
         toolConfig.getTasks('nonexistent-tool', 'drupal', config);
       }).toThrow('Tool configuration not found for: nonexistent-tool');
@@ -131,12 +131,12 @@ describe('Tool Config Module', () => {
   describe('Project validation', () => {
     it('should skip validation when no project is selected', async () => {
       const config = await toolConfig.loadConfig();
-      
+
       // Mock console.log to capture output
       const originalLog = console.log;
       const logs = [];
       console.log = jest.fn((...args) => logs.push(args.join(' ')));
-      
+
       try {
         await toolConfig.validateProject(null, 'cursor', config);
         expect(logs.some(log => log.includes('No project selected'))).toBe(true);
@@ -147,7 +147,7 @@ describe('Tool Config Module', () => {
 
     it('should handle project validation with missing tool gracefully', async () => {
       const config = await toolConfig.loadConfig();
-      
+
       await expect(
         toolConfig.validateProject('drupal', 'nonexistent-tool', config)
       ).rejects.toThrow('Tool configuration not found for: nonexistent-tool');
@@ -155,7 +155,7 @@ describe('Tool Config Module', () => {
 
     it('should handle project validation with missing project gracefully', async () => {
       const config = await toolConfig.loadConfig();
-      
+
       await expect(
         toolConfig.validateProject('nonexistent-project', 'cursor', config)
       ).rejects.toThrow('Project configuration not found for: nonexistent-project');
@@ -165,11 +165,11 @@ describe('Tool Config Module', () => {
   describe('Task filtering', () => {
     it('should filter tasks based on requires-project flag', async () => {
       const config = await toolConfig.loadConfig();
-      
+
       // Test with project selected
       const tasksWithProject = toolConfig.getTasks('cursor', 'drupal', config);
       expect(tasksWithProject.rules).toBeDefined();
-      
+
       // Test without project selected
       const tasksWithoutProject = toolConfig.getTasks('cursor', null, config);
       expect(tasksWithoutProject.rules).toBeUndefined();
@@ -177,10 +177,10 @@ describe('Tool Config Module', () => {
 
     it('should include tool tasks regardless of project selection', async () => {
       const config = await toolConfig.loadConfig();
-      
+
       const tasksWithProject = toolConfig.getTasks('cursor', 'drupal', config);
       const tasksWithoutProject = toolConfig.getTasks('cursor', null, config);
-      
+
       // Tool tasks should be present in both cases
       expect(tasksWithProject['memory-bank']).toBeDefined();
       expect(tasksWithoutProject['memory-bank']).toBeDefined();
@@ -204,7 +204,7 @@ describe('Tool Config Module', () => {
 
     it('should handle getAvailableProjectTypes with missing tool gracefully', async () => {
       const config = await toolConfig.loadConfig();
-      
+
       expect(() => {
         toolConfig.getAvailableProjectTypes('nonexistent-tool', config);
       }).toThrow('Tool configuration not found for: nonexistent-tool');
@@ -218,17 +218,17 @@ describe('Tool Config Module', () => {
         tools: {},
         projects: {}
       };
-      
+
       expect(() => {
         toolConfig.getAvailableTools(minimalConfig);
       }).not.toThrow();
-      
+
       expect(toolConfig.getAvailableTools(minimalConfig)).toEqual([]);
     });
 
     it('should handle missing project validation gracefully', async () => {
       const config = await toolConfig.loadConfig();
-      
+
       // This should not throw, but may log warnings
       expect(() => {
         toolConfig.getAvailableProjectTypes('cursor', config);
