@@ -48,6 +48,7 @@ Our comprehensive test suite provides excellent coverage:
 - **AGENTS.md task** now working correctly with proper Git tag resolution
 - **Verbose flag** working properly for comprehensive debugging
 - **Parameter passing** fixed across all function calls
+- **Project validation** now handles projects with and without validation rules
 
 ## Installation
 

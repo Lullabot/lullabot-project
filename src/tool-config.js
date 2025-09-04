@@ -127,7 +127,13 @@ async function validateProject(projectType, tool, config) {
 
   const projectValidation = projectConfig.validation;
   if (!projectValidation) {
-    throw new Error(`Project validation not configured for ${projectType}`);
+    // If no validation rules are configured, skip validation
+    console.log(
+      chalk.gray(
+        `No validation rules configured for ${projectType} - skipping validation`
+      )
+    );
+    return;
   }
 
   const currentDir = process.cwd();

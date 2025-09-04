@@ -1,0 +1,23 @@
+---
+description: PHPUnit Kernel & Functional test scaffolds.
+globs:
+  - 'tests/src/**/*.php'
+alwaysApply: false
+---
+
+# Drupal Testing Rules
+
+1. **Base classes**
+   - Use `KernelTestBase` for unit‑ish tests needing services.
+   - Use `BrowserTestBase` for full‑stack functional tests.
+
+2. **Fixtures & setup**
+   - Install required modules via `$this->enableModules(['node', 'my_module']);`
+   - Use `$this->drupalCreateUser()` and `$this->drupalLogin()` helpers.
+
+3. **Assertions**
+   - Prefer `$this->assertTrue()` / `$this->assertEquals()` over deprecated helpers.
+   - For rendered HTML, use `$this->assertSession()->elementExists('css', '.class');`.
+
+4. **CI**
+   - Tests must pass with `phpunit -c core/phpunit.xml.dist`.
