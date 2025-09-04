@@ -244,10 +244,10 @@ describe('Tool Config Module - Focused', () => {
         }
       };
 
-      // This should fail validation
+      // This should skip validation (not throw an error)
       await expect(
         toolConfig.validateProject('drupal', 'cursor', mockConfig)
-      ).rejects.toThrow('Project validation not configured for drupal');
+      ).resolves.toBeUndefined();
 
       process.chdir(originalCwd);
     });

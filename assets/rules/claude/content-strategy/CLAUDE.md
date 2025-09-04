@@ -1,4 +1,3 @@
-
 # Voice and Tone Standards
 
 <version>1.0.0</version>
