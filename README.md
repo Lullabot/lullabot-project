@@ -1,3 +1,9 @@
+[![CI](https://github.com/lullabot/lullabot-project/actions/workflows/ci.yml/badge.svg)](https://github.com/lullabot/lullabot-project/actions/workflows/ci.yml)
+[![Release](https://github.com/lullabot/lullabot-project/actions/workflows/release.yml/badge.svg)](https://github.com/lullabot/lullabot-project/actions/workflows/release.yml)
+[![npm version](https://badge.fury.io/js/lullabot-project.svg)](https://badge.fury.io/js/lullabot-project)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 # Lullabot Project Setup
 
 A CLI tool that helps developers set up their development environment with AI tools, memory banks, and project-specific rules. The tool is designed to be extensible, user-friendly, and maintainable.

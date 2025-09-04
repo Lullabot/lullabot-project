@@ -20,7 +20,8 @@ const mockYaml = {
 const mockChalk = {
   green: jest.fn((text) => `GREEN:${text}`),
   red: jest.fn((text) => `RED:${text}`),
-  yellow: jest.fn((text) => `YELLOW:${text}`)
+  yellow: jest.fn((text) => `YELLOW:${text}`),
+  gray: jest.fn((text) => `GRAY:${text}`)
 };
 
 // Mock the modules
@@ -171,15 +172,16 @@ describe('Tool Config - Edge Cases', () => {
       ).rejects.toThrow('Project configuration not found for: invalid-project');
     });
 
-    it('should throw error for project without validation config', async () => {
+    it('should skip validation for project without validation config', async () => {
       const mockConfig = {
         tools: { cursor: { name: 'Cursor' } },
         projects: { drupal: { name: 'Drupal' } }
       };
 
+      // Should not throw an error, just skip validation
       await expect(
         toolConfig.validateProject('drupal', 'cursor', mockConfig)
-      ).rejects.toThrow('Project validation not configured for drupal');
+      ).resolves.toBeUndefined();
     });
   });
 });

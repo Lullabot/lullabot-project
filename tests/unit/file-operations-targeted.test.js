@@ -238,7 +238,8 @@ describe('File Operations - Targeted Coverage Tests', () => {
         type: 'npx'
       };
 
-      const result = await fileOperations.getPackageVersion(packageConfig, true);
+      // Use verbose = false to suppress npm error output in tests
+      const result = await fileOperations.getPackageVersion(packageConfig, false);
       expect(result).toHaveProperty('name', 'non-existent-package-xyz123');
       expect(result).toHaveProperty('version', 'unknown');
       expect(result).toHaveProperty('error');

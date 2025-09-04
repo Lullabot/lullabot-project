@@ -1,6 +1,6 @@
 {
   "name": "lullabot-project",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Setup development environment with AI tools, memory banks, and project-specific rules",
   "type": "module",
   "main": "index.js",
@@ -51,6 +51,23 @@
     "supertest": "^6.3.3"
   },
   "engines": {
-    "node": ">=16.0.0"
-  }
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "index.js",
+    "src/",
+    "config/",
+    "assets/",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lullabot/lullabot-project.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lullabot/lullabot-project/issues"
+  },
+  "homepage": "https://github.com/lullabot/lullabot-project#readme"
 }
