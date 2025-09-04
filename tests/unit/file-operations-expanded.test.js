@@ -2,12 +2,16 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getCurrentVersion } from '../utils/package-info.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Import the module under test
 const fileOperations = await import('../../src/file-operations.js');
+
+// Get current version dynamically
+const currentVersion = await getCurrentVersion();
 
 describe('File Operations Module - Expanded', () => {
   let testDir;
@@ -70,7 +74,7 @@ describe('File Operations Module - Expanded', () => {
       const content = await fs.readFile(configPath, 'utf8');
       expect(content).toContain('drupal');
       expect(content).toContain('cursor');
-      expect(content).toContain('2.1.0');
+      expect(content).toContain(currentVersion);
     });
 
     it('should handle null project type correctly', async () => {
@@ -128,7 +132,7 @@ describe('File Operations Module - Expanded', () => {
       const content = await fs.readFile(configPath, 'utf8');
       expect(content).toContain('file1.txt');
       expect(content).toContain('file2.txt');
-      expect(content).toContain('2.1.0');
+      expect(content).toContain(currentVersion);
     });
   });
 
