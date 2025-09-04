@@ -58,35 +58,40 @@ jobs:
           npm start -- --version
           echo "✅ CLI tests passed"
 
-      - name: Publish NPM Package
-        uses: phucbm/publish-npm-action@v1
-        with:
-          npm-token: ${{ secrets.NPM_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          node-version: '20'
-          build-command: 'echo "No build step required for this CLI tool"'
-          install-command: 'npm ci'
-          test-command: 'npm test'
-          publish-access: 'public'
-          skip-tests: 'false'
-          target-branch: 'main'
+      - name: Publish to NPM
+        run: |
+          echo "📦 Publishing to NPM..."
+
+          # Get the version from the release tag
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "📋 Publishing version: $VERSION"
+
+          # Update package.json version to match the release tag
+          npm version $VERSION --no-git-tag-version
+
+          # Publish to NPM
+          npm publish --access public
+
+          echo "✅ Successfully published to NPM!"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Verify NPM publication
         run: |
           echo "🔍 Verifying NPM publication..."
           PACKAGE_NAME=$(npm pkg get name | tr -d '"')
-          PACKAGE_VERSION=$(npm pkg get version | tr -d '"')
-          echo "📦 Published: $PACKAGE_NAME@$PACKAGE_VERSION"
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "📦 Published: $PACKAGE_NAME@$VERSION"
           echo "🌐 NPM URL: https://www.npmjs.com/package/$PACKAGE_NAME"
 
           # Wait a moment for NPM to process
           sleep 10
 
           # Verify the package exists on NPM
-          if npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version > /dev/null 2>&1; then
+          if npm view "$PACKAGE_NAME@$VERSION" version > /dev/null 2>&1; then
             echo "✅ Package successfully published to NPM!"
             echo "📋 Package info:"
-            npm view "$PACKAGE_NAME@$PACKAGE_VERSION"
+            npm view "$PACKAGE_NAME@$VERSION"
           else
             echo "❌ Package not found on NPM. This might be a timing issue."
             echo "🔍 Checking latest version..."
@@ -96,10 +101,10 @@ jobs:
       - name: Create release summary
         run: |
           PACKAGE_NAME=$(npm pkg get name | tr -d '"')
-          PACKAGE_VERSION=$(npm pkg get version | tr -d '"')
+          VERSION=${GITHUB_REF#refs/tags/v}
           echo "## 🎉 Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Package:** \`$PACKAGE_NAME@$PACKAGE_VERSION\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:** \`$PACKAGE_NAME@$VERSION\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**NPM URL:** https://www.npmjs.com/package/$PACKAGE_NAME" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
