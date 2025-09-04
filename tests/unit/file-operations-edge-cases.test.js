@@ -348,10 +348,11 @@ describe('File Operations - Edge Cases', () => {
 
     it('should handle package version command failures gracefully', async () => {
       // Test with a package that doesn't exist to trigger error handling
+      // Use verbose = false to suppress npm error output in tests
       const result = await fileOperations.getPackageVersion({
         name: 'non-existent-package-xyz123',
         type: 'npx'
-      }, true);
+      }, false);
       expect(result).toBeDefined();
       expect(result.name).toBe('non-existent-package-xyz123');
       expect(result.version).toBe('unknown');
