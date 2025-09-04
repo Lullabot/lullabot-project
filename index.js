@@ -32,6 +32,7 @@ program
   .option('-v, --verbose', 'Verbose output')
   .option('--skip-validation', 'Skip project type validation')
   .option('--dry-run', 'Show what would be done without executing')
+  .option('-F, --force', 'Force re-initialization (overwrites existing files)')
   .action(initCommand);
 
 program

@@ -50,7 +50,7 @@ describe('File Operations - Edge Cases', () => {
       const result = await fileOperations.copyFiles(sourceDir, targetDir, true, itemsToCopy);
 
       // The result includes the target directory path
-      expect(result).toEqual(['target/existing.txt']);
+      expect(result).toEqual([{ path: 'target/existing.txt' }]);
       expect(await fs.pathExists(path.join(targetDir, 'existing.txt'))).toBe(true);
       expect(await fs.pathExists(path.join(targetDir, 'missing.txt'))).toBe(false);
     });
@@ -85,7 +85,7 @@ describe('File Operations - Edge Cases', () => {
       const result = await fileOperations.copyFiles(sourceDir, targetDir, true, itemsToCopy);
 
       // The result includes the target directory path
-      expect(result).toEqual(['target/file1.txt', 'target/file2.txt']);
+      expect(result).toEqual([{ path: 'target/file1.txt' }, { path: 'target/file2.txt' }]);
       expect(await fs.pathExists(path.join(targetDir, 'file1.txt'))).toBe(true);
       expect(await fs.pathExists(path.join(targetDir, 'file2.txt'))).toBe(true);
     });
@@ -105,7 +105,7 @@ describe('File Operations - Edge Cases', () => {
       const result = await fileOperations.copyFiles(sourceDir, targetDir, true, itemsToCopy);
 
       // The result includes the target directory path
-      expect(result).toEqual(['target/existing1.txt', 'target/existing2.txt']);
+      expect(result).toEqual([{ path: 'target/existing1.txt' }, { path: 'target/existing2.txt' }]);
       expect(await fs.pathExists(path.join(targetDir, 'existing1.txt'))).toBe(true);
       expect(await fs.pathExists(path.join(targetDir, 'existing2.txt'))).toBe(true);
       expect(await fs.pathExists(path.join(targetDir, 'missing1.txt'))).toBe(false);
@@ -407,7 +407,7 @@ describe('File Operations - Edge Cases', () => {
         await fs.writeFile(path.join(sourceDir, 'existing.txt'), 'content');
 
         const result = await fileOperations.copyFiles(sourceDir, targetDir, true, ['existing.txt', 'missing.txt']);
-        expect(result).toEqual(['target/existing.txt']);
+        expect(result).toEqual([{ path: 'target/existing.txt' }]);
 
       } finally {
         if (await fs.pathExists(sourceDir)) {

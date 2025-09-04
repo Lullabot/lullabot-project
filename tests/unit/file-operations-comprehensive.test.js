@@ -107,7 +107,7 @@ describe('File Operations Module - Comprehensive', () => {
 
       expect(result).toHaveLength(1);
       // The path should be relative to the current working directory
-      expect(result[0]).toContain('target/normal.txt');
+      expect(result[0].path).toContain('target/normal.txt');
     });
 
     it('should handle verbose mode correctly', async () => {
