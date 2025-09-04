@@ -40,7 +40,6 @@ async function initSetup(options, dependencies) {
     loadConfig,
     getTasks,
     validateProject,
-    executeTask,
     createConfigFile,
     chalk,
     logFn = console.log,
@@ -95,11 +94,7 @@ async function initSetup(options, dependencies) {
       tasks,
       fullConfig,
       options,
-      {
-        executeTask,
-        logFn,
-        chalk
-      }
+      dependencies
     );
     spinner?.succeed('Task execution completed');
 
@@ -268,7 +263,8 @@ async function executeEnabledTasks(
           task,
           config.tool,
           config.project,
-          options.verbose || false
+          options.verbose || false,
+          dependencies
         );
         results.push({ taskId, task, result, success: true });
         logFn(chalk.green(`✅ ${task.name || taskId}: Completed`));
@@ -415,7 +411,8 @@ async function checkIfUpdateNeeded(currentConfig, verbose, dependencies) {
   const { getToolVersion, logFn, chalk } = dependencies;
 
   try {
-    const currentToolVersion = currentConfig.toolVersion;
+    const currentToolVersion =
+      currentConfig.installation?.toolVersion || currentConfig.toolVersion;
     const latestToolVersion = await getToolVersion();
 
     if (verbose) {
@@ -479,7 +476,13 @@ async function performUpdate(currentConfig, fullConfig, options, dependencies) {
       currentConfig.taskPreferences?.[taskId]
     ) {
       try {
-        const result = await executeTask(task, tool, projectType, false);
+        const result = await executeTask(
+          task,
+          tool,
+          projectType,
+          false,
+          dependencies
+        );
         results.push({ taskId, task, result, success: true });
       } catch (error) {
         results.push({ taskId, task, error, success: false });
@@ -793,7 +796,9 @@ async function performRemoval(currentConfig, options, dependencies) {
 
   // Remove created files
   if (currentConfig.files && currentConfig.files.length > 0) {
-    for (const filePath of currentConfig.files) {
+    for (const fileInfo of currentConfig.files) {
+      // Handle both old format (strings) and new format (objects)
+      const filePath = typeof fileInfo === 'string' ? fileInfo : fileInfo.path;
       const fullPath = path.resolve(filePath);
 
       if (options.verbose) {

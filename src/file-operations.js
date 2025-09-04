@@ -45,13 +45,16 @@ function getToolVersion() {
  * @param {string} sourcePath - Source path in the repository (from task config)
  * @param {string} targetPath - Target path where files should be copied
  * @param {boolean} verbose - Whether to show detailed output
- * @returns {Promise<string[]>} Array of copied file paths
+ * @param {string[]} items - Optional array of specific items to copy
+ * @param {Object} dependencies - Injected dependencies for file tracking
+ * @returns {Promise<Object[]>} Array of file tracking objects with paths and hashes
  */
 async function copyFilesFromGit(
   sourcePath,
   targetPath,
   verbose = false,
-  items = null
+  items = null,
+  dependencies = {}
 ) {
   try {
     // Get the list of files that exist before copying
@@ -95,8 +98,8 @@ async function copyFilesFromGit(
       throw gitError;
     }
 
-    // Get list of copied files for tracking
-    const copiedFiles = [];
+    // Get list of copied files for tracking with hashes
+    const trackedFiles = [];
 
     // If we have specific items to copy, track those
     if (items && Array.isArray(items) && items.length > 0) {
@@ -117,7 +120,17 @@ async function copyFilesFromGit(
           );
         }
 
-        copiedFiles.push(relativePath);
+        // Track file with hash if dependencies are provided
+        if (dependencies.trackInstalledFile) {
+          const fileInfo = await dependencies.trackInstalledFile(
+            relativePath,
+            dependencies
+          );
+          trackedFiles.push(fileInfo);
+        } else {
+          // Fallback to simple path tracking
+          trackedFiles.push({ path: relativePath });
+        }
       }
     } else {
       // Fallback: track files that weren't there before copying
@@ -142,7 +155,17 @@ async function copyFilesFromGit(
               );
             }
 
-            copiedFiles.push(relativePath);
+            // Track file with hash if dependencies are provided
+            if (dependencies.trackInstalledFile) {
+              const fileInfo = await dependencies.trackInstalledFile(
+                relativePath,
+                dependencies
+              );
+              trackedFiles.push(fileInfo);
+            } else {
+              // Fallback to simple path tracking
+              trackedFiles.push({ path: relativePath });
+            }
           }
         }
       } catch (_error) {
@@ -152,10 +175,10 @@ async function copyFilesFromGit(
 
     if (verbose) {
       console.log(chalk.green(`✅ Copied files to ${targetPath}`));
-      console.log(chalk.gray(`Tracked ${copiedFiles.length} files`));
+      console.log(chalk.gray(`Tracked ${trackedFiles.length} files`));
     }
 
-    return copiedFiles;
+    return trackedFiles;
   } catch (error) {
     if (verbose) {
       console.log(chalk.red(`Git copy failed: ${error.message}`));
@@ -173,9 +196,16 @@ async function copyFilesFromGit(
  * @param {string} targetDir - Target directory path
  * @param {boolean} verbose - Whether to show detailed output
  * @param {string[]} items - Optional array of specific items to copy
- * @returns {Promise<string[]>} Array of copied file paths
+ * @param {Object} dependencies - Injected dependencies for file tracking
+ * @returns {Promise<Object[]>} Array of file tracking objects with paths and hashes
  */
-async function copyFiles(sourceDir, targetDir, verbose = false, items = null) {
+async function copyFiles(
+  sourceDir,
+  targetDir,
+  verbose = false,
+  items = null,
+  dependencies = {}
+) {
   try {
     await fs.access(sourceDir);
   } catch (_error) {
@@ -197,7 +227,7 @@ async function copyFiles(sourceDir, targetDir, verbose = false, items = null) {
     itemsToCopy = allItems;
   }
 
-  const copiedFiles = [];
+  const trackedFiles = [];
 
   // Copy each item from source to target
   for (const item of itemsToCopy) {
@@ -238,16 +268,26 @@ async function copyFiles(sourceDir, targetDir, verbose = false, items = null) {
       );
     }
 
-    copiedFiles.push(normalizedPath);
+    // Track file with hash if dependencies are provided
+    if (dependencies.trackInstalledFile) {
+      const fileInfo = await dependencies.trackInstalledFile(
+        normalizedPath,
+        dependencies
+      );
+      trackedFiles.push(fileInfo);
+    } else {
+      // Fallback to simple path tracking
+      trackedFiles.push({ path: normalizedPath });
+    }
   }
 
   if (verbose) {
     console.log(
-      chalk.green(`✅ Copied ${copiedFiles.length} items to ${targetDir}`)
+      chalk.green(`✅ Copied ${trackedFiles.length} items to ${targetDir}`)
     );
   }
 
-  return copiedFiles;
+  return trackedFiles;
 }
 
 /**
@@ -404,9 +444,16 @@ async function getCreatedFiles(config) {
  * @param {string} tool - The tool identifier
  * @param {string} projectType - The project type
  * @param {boolean} verbose - Whether to show detailed output
+ * @param {Object} dependencies - Injected dependencies for file tracking
  * @returns {Promise<Object>} Task execution result
  */
-async function executeTask(task, tool, projectType, verbose = false) {
+async function executeTask(
+  task,
+  tool,
+  projectType,
+  verbose = false,
+  dependencies = {}
+) {
   const taskId = task.id;
 
   if (verbose) {
@@ -419,7 +466,13 @@ async function executeTask(task, tool, projectType, verbose = false) {
       case 'command':
         return await executeCommandTask(task, verbose);
       case 'copy-files':
-        return await executeCopyFilesTask(task, tool, projectType, verbose);
+        return await executeCopyFilesTask(
+          task,
+          tool,
+          projectType,
+          verbose,
+          dependencies
+        );
       case 'package-install':
         return await executePackageInstallTask(task, verbose);
       default:
@@ -479,9 +532,16 @@ async function executeCommandTask(task, verbose = false) {
  * @param {string} tool - The tool identifier
  * @param {string} projectType - The project type
  * @param {boolean} verbose - Whether to show detailed output
- * @returns {Promise<string[]>} Array of copied file paths
+ * @param {Object} dependencies - Injected dependencies for file tracking
+ * @returns {Promise<Object[]>} Array of file tracking objects with paths and hashes
  */
-async function executeCopyFilesTask(task, tool, projectType, verbose = false) {
+async function executeCopyFilesTask(
+  task,
+  tool,
+  projectType,
+  verbose = false,
+  dependencies = {}
+) {
   // Replace placeholders in source and target paths
   const source = task.source
     .replace('{tool}', tool)
@@ -496,7 +556,13 @@ async function executeCopyFilesTask(task, tool, projectType, verbose = false) {
   if (source.startsWith('assets/')) {
     // Use Git for files from the repository
     const items = task.items || null;
-    const result = await copyFilesFromGit(source, target, verbose, items);
+    const result = await copyFilesFromGit(
+      source,
+      target,
+      verbose,
+      items,
+      dependencies
+    );
     return result;
   } else {
     // Use local file system for other files
@@ -504,7 +570,13 @@ async function executeCopyFilesTask(task, tool, projectType, verbose = false) {
     const fullSourcePath = path.join(toolDir, '..', source);
     const items = task.items || null;
 
-    const result = await copyFiles(fullSourcePath, target, verbose, items);
+    const result = await copyFiles(
+      fullSourcePath,
+      target,
+      verbose,
+      items,
+      dependencies
+    );
     return result;
   }
 }
@@ -576,6 +648,11 @@ function getDefaultVersionCommand(packageName, type) {
  * @returns {string} Extracted version string
  */
 function parseVersionFromOutput(output, type) {
+  // Handle null/undefined output
+  if (!output) {
+    return 'unknown';
+  }
+
   switch (type) {
     case 'npm':
     case 'yarn':
@@ -650,6 +727,110 @@ async function getPackageVersion(packageConfig, verbose = false) {
   }
 }
 
+/**
+ * Calculate SHA256 hash of a file.
+ * Uses dependency injection for testability.
+ *
+ * @param {string} filePath - Path to the file to hash
+ * @param {Object} dependencies - Injected dependencies
+ * @param {Object} dependencies.crypto - Crypto module
+ * @param {Object} dependencies.fs - File system module
+ * @returns {Promise<string>} SHA256 hash as hex string
+ */
+async function calculateFileHash(filePath, dependencies = {}) {
+  const { crypto, fs } = dependencies;
+
+  if (!crypto || !fs) {
+    throw new Error('Missing required dependencies: crypto and fs');
+  }
+
+  const content = await fs.readFile(filePath);
+  return crypto.createHash('sha256').update(content).digest('hex');
+}
+
+/**
+ * Check for file changes by comparing current hashes with stored hashes.
+ * Uses dependency injection for testability.
+ *
+ * @param {Object} config - Configuration object with files array
+ * @param {Object} dependencies - Injected dependencies
+ * @param {Function} dependencies.calculateFileHash - Function to calculate file hash
+ * @returns {Promise<Array>} Array of changed files with change details
+ */
+async function checkFileChanges(config, dependencies = {}) {
+  const { calculateFileHash } = dependencies;
+
+  if (!calculateFileHash) {
+    throw new Error('Missing required dependency: calculateFileHash');
+  }
+
+  const changedFiles = [];
+
+  for (const fileInfo of config.files || []) {
+    try {
+      const currentHash = await calculateFileHash(fileInfo.path, dependencies);
+      if (currentHash !== fileInfo.originalHash) {
+        changedFiles.push({
+          path: fileInfo.path,
+          originalHash: fileInfo.originalHash,
+          currentHash
+        });
+      }
+    } catch (error) {
+      // File doesn't exist or can't be read
+      changedFiles.push({
+        path: fileInfo.path,
+        originalHash: fileInfo.originalHash,
+        currentHash: null,
+        error: error.message
+      });
+    }
+  }
+
+  return changedFiles;
+}
+
+/**
+ * Track an installed file with its hash.
+ * Uses dependency injection for testability.
+ *
+ * @param {string} filePath - Path to the installed file
+ * @param {Object} dependencies - Injected dependencies
+ * @param {Function} dependencies.calculateFileHash - Function to calculate file hash
+ * @returns {Promise<Object>} File tracking object with path and hash
+ */
+async function trackInstalledFile(filePath, dependencies = {}) {
+  const { calculateFileHash } = dependencies;
+
+  if (!calculateFileHash) {
+    throw new Error('Missing required dependency: calculateFileHash');
+  }
+
+  const hash = await calculateFileHash(filePath, dependencies);
+  return {
+    path: filePath,
+    originalHash: hash
+  };
+}
+
+/**
+ * Check if project is initialized by checking for configuration file.
+ * Uses dependency injection for testability.
+ *
+ * @param {Object} dependencies - Injected dependencies
+ * @param {Function} dependencies.configExists - Function to check if config exists
+ * @returns {Promise<boolean>} True if project is initialized, false otherwise
+ */
+async function isProjectInitialized(dependencies = {}) {
+  const { configExists } = dependencies;
+
+  if (!configExists) {
+    throw new Error('Missing required dependency: configExists');
+  }
+
+  return await configExists();
+}
+
 export {
   copyFiles,
   copyFilesFromGit,
@@ -660,5 +841,9 @@ export {
   configExists,
   getCreatedFiles,
   getPackageVersion,
-  getToolVersion
+  getToolVersion,
+  calculateFileHash,
+  checkFileChanges,
+  trackInstalledFile,
+  isProjectInitialized
 };

@@ -208,6 +208,56 @@ async function confirmAction(message, defaultAnswer = false, promptFn) {
 }
 
 /**
+ * Confirm file overwrite with user.
+ * Shows a warning about modified files and asks for confirmation to overwrite.
+ * Uses dependency injection for testability.
+ *
+ * @param {Array} changedFiles - Array of changed file objects
+ * @param {Object} dependencies - Injected dependencies
+ * @param {Function} dependencies.promptFn - Function to handle user prompts
+ * @param {Object} dependencies.chalk - Chalk instance for styling
+ * @returns {Promise<boolean>} True if user confirmed overwrite, false otherwise
+ */
+async function confirmFileOverwrite(changedFiles, dependencies = {}) {
+  const { promptFn, chalk } = dependencies;
+
+  if (!promptFn || !chalk) {
+    throw new Error('Missing required dependencies: promptFn and chalk');
+  }
+
+  if (!changedFiles || changedFiles.length === 0) {
+    return true; // No files to overwrite
+  }
+
+  // Build warning message
+  let message = chalk.yellow(
+    '⚠️  Warning: The following files have been modified:\n\n'
+  );
+
+  for (const file of changedFiles) {
+    if (file.error) {
+      message += `  • ${chalk.red(file.path)} (${file.error})\n`;
+    } else {
+      message += `  • ${chalk.red(file.path)}\n`;
+    }
+  }
+
+  message += `\nThese files will be overwritten with the latest versions.\n`;
+  message += `Continue?`;
+
+  const { confirmed } = await promptFn([
+    {
+      type: 'confirm',
+      name: 'confirmed',
+      message,
+      default: false
+    }
+  ]);
+
+  return confirmed;
+}
+
+/**
  * Display a summary and get confirmation before proceeding.
  * Shows the configuration that will be applied and asks for final confirmation.
  *
@@ -259,5 +309,6 @@ export {
   getProjectSelection,
   getTaskPreferences,
   confirmAction,
-  confirmSetup
+  confirmSetup,
+  confirmFileOverwrite
 };

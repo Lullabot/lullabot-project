@@ -60,7 +60,7 @@ describe('File Operations - Targeted Coverage Tests', () => {
       // Test with normal path
       const result = await fileOperations.copyFiles(sourceDir, targetDir, false, ['test.txt']);
       expect(result).toHaveLength(1);
-      expect(result[0]).toBe('target/test.txt'); // Returns relative path from cwd
+      expect(result[0].path).toBe('target/test.txt'); // Returns object with path property
     });
 
     it('should handle source directory access error gracefully', async () => {
@@ -122,7 +122,7 @@ describe('File Operations - Targeted Coverage Tests', () => {
       // Test that the function includes path traversal security checks
       const result = await fileOperations.copyFiles(sourceDir, targetDir, false);
       expect(result).toHaveLength(1);
-      expect(result[0]).toBe('target/test.txt');
+      expect(result[0].path).toBe('target/test.txt');
     });
   });
 
