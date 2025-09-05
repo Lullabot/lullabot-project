@@ -775,36 +775,6 @@ For issues and questions:
 - Check the troubleshooting section
 - Review the verbose output for debugging
 
-## Changelog
-
-### Version 2.0.0 (Current)
-- **Production Ready Release** - Tool is now production-ready with comprehensive testing
-- **Excellent Test Coverage** - 99.8% test success rate with 456 tests passing
-- **Enhanced Error Handling** - Robust error handling for all operations
-- **Improved Security** - Better path traversal prevention and validation
-- **Git Operation Reliability** - Enhanced Git operations with fallback mechanisms
-- **Memory Bank Integration** - Reliable memory bank setup and management
-- **Project Rules Installation** - Robust project rules installation with validation
-- **Comprehensive Edge Case Testing** - Testing of failure scenarios and edge cases
-- **No Known Regressions** - Stable and reliable operation across all features
-- **AGENTS.md Task Fixed** - File copying now works correctly with proper Git tag resolution
-- **Verbose Flag Working** - Comprehensive debug output for troubleshooting
-- **Parameter Passing Fixed** - All function calls now use correct parameters
-
-### Version 1.0.0
-- Initial release
-- **Git-Based File Access**: Pull latest rules from repository
-- **Version-Pinned Operations**: Automatic Git tag matching for version consistency
-- **Enhanced Task System**: Dynamic task execution with package installation, file copying, and command execution
-- **Flexible File Copying**: Support for copying individual files and/or directories
-- **Backward Compatibility**: All existing configurations continue to work without changes
-- Support for Cursor, Windsurf, and VSCode tools
-- Drupal project type
-- Memory bank integration
-- Project rules installation
-- Interactive setup process
-- Configuration management
-
 ## Development
 
 ### Prerequisites
