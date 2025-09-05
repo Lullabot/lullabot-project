@@ -69,8 +69,16 @@ jobs:
           echo "📋 Publishing version: $VERSION"
           echo "📋 Original GITHUB_REF: $GITHUB_REF"
 
-          # Update package.json version to match the release tag
-          npm version $VERSION --no-git-tag-version
+          # Check if version update is needed
+          CURRENT_VERSION=$(npm pkg get version | tr -d '"')
+          echo "📋 Current package.json version: $CURRENT_VERSION"
+
+          if [ "$CURRENT_VERSION" != "$VERSION" ]; then
+            echo "📋 Updating version from $CURRENT_VERSION to $VERSION"
+            npm version $VERSION --no-git-tag-version
+          else
+            echo "📋 Version $VERSION already set in package.json - skipping version update"
+          fi
 
           # Publish to NPM
           npm publish --access public
