@@ -8,6 +8,8 @@ const __dirname = path.dirname(__filename);
 
 // Import the module under test
 const fileOperations = await import('../../src/file-operations.js');
+// Import copyFiles from task type module for testing
+const { copyFiles } = await import('../../src/task-types/copy-files.js');
 
 describe('File Operations - Edge Cases', () => {
   let testDir;
@@ -47,7 +49,7 @@ describe('File Operations - Edge Cases', () => {
       // Try to copy items including non-existent ones
       const itemsToCopy = ['existing.txt', 'missing.txt', 'another-missing.txt'];
 
-      const result = await fileOperations.copyFiles(sourceDir, targetDir, true, itemsToCopy);
+      const result = await copyFiles(sourceDir, targetDir, true, itemsToCopy);
 
       // The result includes the target directory path
       expect(result).toEqual([{ path: 'target/existing.txt' }]);
@@ -64,7 +66,7 @@ describe('File Operations - Edge Cases', () => {
       // Try to copy non-existent items
       const itemsToCopy = ['missing1.txt', 'missing2.txt'];
 
-      const result = await fileOperations.copyFiles(sourceDir, targetDir, true, itemsToCopy);
+      const result = await copyFiles(sourceDir, targetDir, true, itemsToCopy);
 
       expect(result).toEqual([]);
       expect(await fs.pathExists(targetDir)).toBe(true);
@@ -82,7 +84,7 @@ describe('File Operations - Edge Cases', () => {
 
       const itemsToCopy = ['file1.txt', 'file2.txt'];
 
-      const result = await fileOperations.copyFiles(sourceDir, targetDir, true, itemsToCopy);
+      const result = await copyFiles(sourceDir, targetDir, true, itemsToCopy);
 
       // The result includes the target directory path
       expect(result).toEqual([{ path: 'target/file1.txt' }, { path: 'target/file2.txt' }]);
@@ -102,7 +104,7 @@ describe('File Operations - Edge Cases', () => {
 
       const itemsToCopy = ['existing1.txt', 'missing1.txt', 'existing2.txt', 'missing2.txt'];
 
-      const result = await fileOperations.copyFiles(sourceDir, targetDir, true, itemsToCopy);
+      const result = await copyFiles(sourceDir, targetDir, true, itemsToCopy);
 
       // The result includes the target directory path
       expect(result).toEqual([{ path: 'target/existing1.txt' }, { path: 'target/existing2.txt' }]);
@@ -383,7 +385,7 @@ describe('File Operations - Edge Cases', () => {
         // Try to copy non-existent items
         const itemsToCopy = ['missing1.txt', 'missing2.txt'];
 
-        const result = await fileOperations.copyFiles(sourceDir, targetDir, true, itemsToCopy);
+        const result = await copyFiles(sourceDir, targetDir, true, itemsToCopy);
         expect(result).toEqual([]);
 
       } finally {
@@ -407,7 +409,7 @@ describe('File Operations - Edge Cases', () => {
         // Create one existing file
         await fs.writeFile(path.join(sourceDir, 'existing.txt'), 'content');
 
-        const result = await fileOperations.copyFiles(sourceDir, targetDir, true, ['existing.txt', 'missing.txt']);
+        const result = await copyFiles(sourceDir, targetDir, true, ['existing.txt', 'missing.txt']);
         expect(result).toEqual([{ path: 'target/existing.txt' }]);
 
       } finally {

@@ -89,7 +89,7 @@ async function initSetup(options, dependencies) {
 
     // Execute enabled tasks
     spinner?.start('Executing tasks...');
-    const results = await executeEnabledTasks(
+    const { results, accumulatedFiles } = await executeEnabledTasks(
       config,
       tasks,
       fullConfig,
@@ -100,6 +100,11 @@ async function initSetup(options, dependencies) {
 
     // Process task results to extract copied files and package information
     config = processTaskResults(config, results);
+
+    // Update config with accumulated files from task execution
+    if (accumulatedFiles.length > 0) {
+      config.files = accumulatedFiles;
+    }
 
     // Create configuration file
     spinner?.start('Creating configuration file...');
@@ -227,6 +232,11 @@ function processTaskResults(config, results) {
         if (Array.isArray(result.result)) {
           updatedConfig.files.push(...result.result);
         }
+      } else if (result.task.type === 'agents-md') {
+        // Add AGENTS.md file to the files array
+        if (result.result.files && Array.isArray(result.result.files)) {
+          updatedConfig.files.push(...result.result.files);
+        }
       } else if (result.task.type === 'package-install') {
         // Add package information
         if (result.result.packageInfo) {
@@ -253,19 +263,45 @@ async function executeEnabledTasks(
   const { executeTask, logFn, chalk } = dependencies;
   const results = [];
 
+  // Accumulate files from previous tasks for agents-md task
+  const accumulatedFiles = [...(config.files || [])];
+
   for (const [taskId, task] of Object.entries(tasks)) {
     if (
       config.features?.taskPreferences?.[taskId] ||
       config.taskPreferences?.[taskId]
     ) {
       try {
+        // Add config and projectRoot to dependencies for tasks that need them
+        const enhancedDependencies = {
+          ...dependencies,
+          config: {
+            ...config,
+            files: accumulatedFiles // Pass accumulated files to tasks
+          },
+          projectRoot: process.cwd()
+        };
+
         const result = await executeTask(
           task,
           config.tool,
           config.project,
           options.verbose || false,
-          dependencies
+          enhancedDependencies
         );
+
+        // Accumulate files from this task's result
+        if (task.type === 'copy-files' && Array.isArray(result)) {
+          accumulatedFiles.push(...result);
+        } else if (
+          task.type === 'agents-md' &&
+          result &&
+          result.files &&
+          Array.isArray(result.files)
+        ) {
+          accumulatedFiles.push(...result.files);
+        }
+
         results.push({ taskId, task, result, success: true });
         logFn(chalk.green(`✅ ${task.name || taskId}: Completed`));
       } catch (error) {
@@ -276,7 +312,7 @@ async function executeEnabledTasks(
       }
     }
   }
-  return results;
+  return { results, accumulatedFiles };
 }
 
 /**
@@ -470,19 +506,46 @@ async function performUpdate(currentConfig, fullConfig, options, dependencies) {
 
   // Execute all enabled tasks
   const results = [];
+
+  // Accumulate files from previous tasks for agents-md task
+  const accumulatedFiles = [...(currentConfig.files || [])];
+
   for (const [taskId, task] of Object.entries(tasks)) {
     if (
       currentConfig.features?.taskPreferences?.[taskId] ||
       currentConfig.taskPreferences?.[taskId]
     ) {
       try {
+        // Add config and projectRoot to dependencies for tasks that need them
+        const enhancedDependencies = {
+          ...dependencies,
+          config: {
+            ...currentConfig,
+            files: accumulatedFiles // Pass accumulated files to tasks
+          },
+          projectRoot: process.cwd()
+        };
+
         const result = await executeTask(
           task,
           tool,
           projectType,
           false,
-          dependencies
+          enhancedDependencies
         );
+
+        // Accumulate files from this task's result
+        if (task.type === 'copy-files' && Array.isArray(result)) {
+          accumulatedFiles.push(...result);
+        } else if (
+          task.type === 'agents-md' &&
+          result &&
+          result.files &&
+          Array.isArray(result.files)
+        ) {
+          accumulatedFiles.push(...result.files);
+        }
+
         results.push({ taskId, task, result, success: true });
       } catch (error) {
         results.push({ taskId, task, error, success: false });
@@ -490,7 +553,8 @@ async function performUpdate(currentConfig, fullConfig, options, dependencies) {
     }
   }
 
-  // Update configuration file with new tool version
+  // Update configuration file with new tool version and accumulated files
+  currentConfig.files = accumulatedFiles;
   await createConfigFile(currentConfig, fullConfig);
 
   return results;
@@ -768,7 +832,8 @@ async function handleRemoveDryRun(currentConfig, options, dependencies) {
     logFn(`• Files: ${chalk.red('🗑️')} ${currentConfig.files.length} files`);
     if (options.verbose) {
       currentConfig.files.forEach((file) => {
-        logFn(`  - ${file}`);
+        const filePath = typeof file === 'string' ? file : file.path;
+        logFn(`  - ${filePath}`);
       });
     }
   } else {
@@ -777,6 +842,89 @@ async function handleRemoveDryRun(currentConfig, options, dependencies) {
 
   logFn(`\n${'─'.repeat(50)}`);
   logFn(chalk.yellow('💡 This was a dry run - no changes were made.'));
+}
+
+/**
+ * Handle AGENTS.md removal - either delete the file or remove Lullabot comment section
+ */
+async function handleAgentsMdRemoval(
+  fileInfo,
+  fullPath,
+  options,
+  dependencies
+) {
+  const { fs, chalk, logFn } = dependencies;
+
+  // Check if file exists
+  if (!(await fs.pathExists(fullPath))) {
+    if (options.verbose) {
+      logFn(chalk.gray(`  AGENTS.md not found: ${fullPath}`));
+    }
+    return;
+  }
+
+  // Check if this file was created by the tool or already existed
+  const wasPreExisting = fileInfo.preExisting === true;
+
+  if (wasPreExisting) {
+    // File existed before - remove only the Lullabot comment section
+    if (options.verbose) {
+      logFn(
+        chalk.gray(
+          `  Removing Lullabot comment section from existing AGENTS.md`
+        )
+      );
+    }
+
+    try {
+      const content = await fs.readFile(fullPath, 'utf8');
+      const cleanedContent = removeLullabotCommentSection(content);
+
+      if (cleanedContent !== content) {
+        await fs.writeFile(fullPath, cleanedContent);
+        if (options.verbose) {
+          logFn(
+            chalk.gray(`  Removed Lullabot comment section from AGENTS.md`)
+          );
+        }
+      } else {
+        if (options.verbose) {
+          logFn(chalk.gray(`  No Lullabot comment section found in AGENTS.md`));
+        }
+      }
+    } catch (error) {
+      logFn(
+        chalk.yellow(`  Warning: Could not clean AGENTS.md: ${error.message}`)
+      );
+    }
+  } else {
+    // File was created by the tool - delete the entire file
+    await fs.remove(fullPath);
+    if (options.verbose) {
+      logFn(chalk.gray(`  Removed: ${fullPath} (created by tool)`));
+    }
+  }
+}
+
+/**
+ * Remove Lullabot comment section from AGENTS.md content
+ */
+function removeLullabotCommentSection(content) {
+  const LULLABOT_COMMENT_START = '<!-- Lullabot Project Start -->';
+  const LULLABOT_COMMENT_END = '<!-- Lullabot Project End -->';
+
+  // Remove the entire Lullabot comment section
+  const cleanedContent = content
+    .replace(
+      new RegExp(
+        `${LULLABOT_COMMENT_START}[\\s\\S]*?${LULLABOT_COMMENT_END}`,
+        'g'
+      ),
+      ''
+    )
+    .trim();
+
+  return cleanedContent;
 }
 
 /**
@@ -812,6 +960,13 @@ async function performRemoval(currentConfig, options, dependencies) {
       // Validate path safety
       if (!isPathSafe(filePath, process.cwd(), fullPath, path)) {
         logFn(chalk.yellow(`  Skipped (unsafe path): ${filePath}`));
+        continue;
+      }
+
+      // Special handling for AGENTS.md
+      if (filePath === 'AGENTS.md') {
+        await handleAgentsMdRemoval(fileInfo, fullPath, options, dependencies);
+        removedFiles.push(filePath);
         continue;
       }
 
@@ -925,7 +1080,9 @@ export {
   handleRemoveDryRun,
   performRemoval,
   displayRemovalSummary,
-  isPathSafe
+  isPathSafe,
+  handleAgentsMdRemoval,
+  removeLullabotCommentSection
 };
 // Export a factory function for backward compatibility
 export function createCLI(dependencies) {

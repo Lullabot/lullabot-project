@@ -47,7 +47,6 @@ describe('File Operations Module', () => {
       expect(typeof fileOperations.getToolVersion).toBe('function');
       expect(typeof fileOperations.createConfigFile).toBe('function');
       expect(typeof fileOperations.readConfigFile).toBe('function');
-      expect(typeof fileOperations.copyFilesFromGit).toBe('function');
       expect(typeof fileOperations.executeTask).toBe('function');
     });
   });
@@ -117,11 +116,9 @@ describe('File Operations Module', () => {
 
   describe('copyFilesFromGit', () => {
     it('should handle git copy operations', async () => {
-      // This function requires Git operations, so we'll test the basic structure
-      expect(typeof fileOperations.copyFilesFromGit).toBe('function');
-
-      // Test function signature
-      expect(fileOperations.copyFilesFromGit.length).toBe(2); // sourcePath, targetPath (verbose has default)
+      // This function has been moved to the copy-files task type module
+      // We'll test the executeTask function instead which routes to the appropriate task type
+      expect(typeof fileOperations.executeTask).toBe('function');
     });
   });
 

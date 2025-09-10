@@ -9,6 +9,8 @@ const __dirname = path.dirname(__filename);
 
 // Import the module under test
 const fileOperations = await import('../../src/file-operations.js');
+// Import copyFiles from task type module for testing
+const { copyFiles } = await import('../../src/task-types/copy-files.js');
 
 // Get current version dynamically
 const currentVersion = await getCurrentVersion();
@@ -174,8 +176,8 @@ describe('File Operations Module - Expanded', () => {
 
   describe('copyFilesFromGit', () => {
     it('should handle git copy operations', async () => {
-      expect(typeof fileOperations.copyFilesFromGit).toBe('function');
-      expect(fileOperations.copyFilesFromGit.length).toBe(2); // sourcePath, targetPath (verbose has default)
+      // copyFilesFromGit moved to task type module
+      expect(typeof copyFiles).toBe('function');
     });
 
     it('should handle different source and target paths', async () => {

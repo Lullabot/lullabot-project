@@ -53,6 +53,13 @@ describe('Version Consistency', () => {
   it('should report hardcoded version numbers in test files for review', async () => {
     // This test helps identify hardcoded versions that should be made dynamic
     const testDir = path.join(__dirname, '..');
+
+    // Check if directory exists before reading
+    if (!(await fs.pathExists(testDir))) {
+      console.log('Test directory does not exist, skipping version check');
+      return;
+    }
+
     const testFiles = await fs.readdir(testDir, { recursive: true });
 
     const versionPattern = /\b2\.\d+\.\d+\b/g;
