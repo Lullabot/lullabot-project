@@ -14,6 +14,7 @@ A CLI tool that helps developers set up their development environment with AI to
 - **Project Validation**: Automatically validate project types and structure
 - **Memory Bank Setup**: Configure AI memory banks for enhanced development
 - **Project Rules**: Install project-specific coding standards and guidelines
+- **AGENTS.md Standardization**: Centralized AI development instructions across all tools
 - **Git-Based File Access**: Pull latest rules and configurations from the repository
 - **Version-Pinned Operations**: Automatically uses Git tags matching the tool version for consistency
 - **Flexible Task System**: Dynamic task execution with package installation, file copying, and command execution
@@ -21,6 +22,52 @@ A CLI tool that helps developers set up their development environment with AI to
 - **Update Management**: Easy updates to existing configurations
 - **Extensible**: Easy to add new tools and project types
 - **Comprehensive Testing**: Robust test suite with excellent coverage
+
+## AGENTS.md Standardization
+
+The tool now supports the **AGENTS.md Standard** - a unified approach to AI development instructions across all supported tools.
+
+### What is AGENTS.md?
+
+AGENTS.md is a standardized file that serves as the central source of truth for AI development instructions in your project. Instead of maintaining separate instruction files for each AI tool (Claude, Cursor, Windsurf, etc.), you maintain one `AGENTS.md` file that all tools can reference.
+
+### How It Works
+
+1. **Centralized Instructions**: Create a single `AGENTS.md` file in your project root
+2. **Tool-Specific Wrappers**: Each AI tool gets a lightweight wrapper file that imports `AGENTS.md`
+3. **Automatic Generation**: The tool automatically generates `AGENTS.md` with references to your project-specific rules
+4. **User Customization**: Add your own custom instructions outside the Lullabot-managed sections
+
+### Example Structure
+
+```
+your-project/
+├── AGENTS.md                    # Central AI instructions
+├── .ai/                        # Project-specific rules
+│   └── rules/
+│       ├── drupal-core.md
+│       ├── drupal-testing.md
+│       └── code-quality.md
+├── claude.md                   # Claude wrapper (imports AGENTS.md)
+├── .windsurf/rules/agents.md   # Windsurf wrapper (imports AGENTS.md)
+└── .github/copilot-instructions.md # GitHub Copilot wrapper (imports AGENTS.md)
+```
+
+### Benefits
+
+- **Consistency**: Same instructions across all AI tools
+- **Maintainability**: Update instructions in one place
+- **Flexibility**: Each tool can have additional tool-specific instructions
+- **User Control**: Preserve your custom instructions during updates
+- **Future-Proof**: Easy to add new AI tools
+
+### Supported Tools
+
+- **Claude Code**: Uses `claude.md` wrapper
+- **Cursor**: Direct `AGENTS.md` support
+- **Windsurf**: Uses `.windsurf/rules/agents.md` wrapper
+- **GitHub Copilot**: Uses `.github/copilot-instructions.md` wrapper
+- **Gemini**: Uses `gemini.md` wrapper
 
 ## Current Status
 
@@ -80,6 +127,99 @@ lullabot-project init
 lullabot-project init -i cursor -p drupal --all-tasks
 ```
 
+### AGENTS.md Usage
+
+The tool automatically sets up AGENTS.md standardization when you select tools that support it:
+
+```bash
+# Set up Cursor with AGENTS.md
+lullabot-project init -t cursor -p drupal
+
+# Set up multiple tools with AGENTS.md
+lullabot-project init -t cursor,claude,windsurf -p drupal
+```
+
+This will:
+1. Copy project-specific rules to `.ai/rules/` directory
+2. Generate `AGENTS.md` with references to those rules
+3. Create tool-specific wrapper files that import `AGENTS.md`
+
+#### Customizing AGENTS.md
+
+You can add your own custom instructions to `AGENTS.md`:
+
+```markdown
+# My Project AI Instructions
+
+## Custom Rules
+- Always use TypeScript for new files
+- Follow our custom naming conventions
+- Include comprehensive error handling
+
+<!-- Lullabot Project Start -->
+## Project-Specific AI Development Files
+
+This project includes the following AI development files:
+
+@.ai/rules/drupal-core.md
+@.ai/rules/drupal-testing.md
+@.ai/rules/code-quality.md
+
+<!-- Lullabot Project End -->
+
+## Additional Guidelines
+- Review all AI-generated code before committing
+- Test thoroughly in development environment
+```
+
+The tool will preserve your custom content and only update the Lullabot-managed section between the comment markers.
+
+#### Link Type Configuration
+
+The `agents-md` task supports different link formats for file references. You can configure this in the `config/config.yml` file:
+
+```yaml
+agents-md:
+  name: "AGENTS.md"
+  type: "agents-md"
+  source: "assets/AGENTS.md"
+  target: "."
+  link-type: "markdown"  # or "@"
+```
+
+**Available link types:**
+
+- **`markdown`** (default for Windsurf, GitHub Copilot): Creates markdown links
+  ```
+  - [.ai/rules/drupal-core.md](.ai/rules/drupal-core.md)
+  - [.ai/rules/drupal-testing.md](.ai/rules/drupal-testing.md)
+  ```
+
+- **`@`** (default for Cursor, Claude): Creates @ symbol references
+  ```
+  @.ai/rules/drupal-core.md
+  @.ai/rules/drupal-testing.md
+  ```
+
+**AI Agent Instructions:**
+
+The AGENTS.md file automatically includes instructions for AI agents to read and apply the project-specific files:
+
+```markdown
+## Project-Specific AI Development Files
+
+This project includes the following AI development files. **Please read and include these files in your context when providing assistance:**
+
+- [.ai/rules/drupal-core.md](.ai/rules/drupal-core.md)
+- [.ai/rules/drupal-testing.md](.ai/rules/drupal-testing.md)
+
+**Instructions for AI Agents:**
+- Read each of the above files to understand the project's specific requirements
+- Apply the guidelines, standards, and patterns defined in these files
+- Reference these files when making recommendations or suggestions
+- Ensure all code and suggestions align with the project's established patterns
+```
+
 ### Commands
 
 #### `init` - Initialize Development Environment
@@ -99,6 +239,7 @@ lullabot-project init [options]
 - `-v, --verbose` - Verbose output
 - `--skip-validation` - Skip project type validation
 - `--dry-run` - Show what would be done without executing
+- `--local` - Use local files instead of Git repository (for development)
 
 **Examples:**
 ```bash
@@ -131,6 +272,9 @@ lullabot-project init -t cursor -p drupal --all-tasks
 
 # Verbose setup with validation
 lullabot-project init -t cursor -p drupal -v
+
+# Local development mode (uses local files instead of Git)
+lullabot-project init -t cursor -p drupal --local
 ```
 
 #### `update` - Update Existing Setup
@@ -150,6 +294,7 @@ lullabot-project update [options]
 - `-v, --verbose` - Verbose output
 - `--dry-run` - Show what would be updated without executing
 - `-F, --force` - Force update - recreate configuration if corrupted
+- `--local` - Use local files instead of Git repository (for development)
 
 **Examples:**
 ```bash
@@ -176,6 +321,9 @@ lullabot-project update --force
 
 # Force update with dry-run to see what would happen
 lullabot-project update --force --dry-run
+
+# Local development mode (uses local files instead of Git)
+lullabot-project update --local
 ```
 
 #### `config` - Show Configuration
@@ -239,7 +387,10 @@ lullabot-project remove --force --verbose
 
 **What gets removed:**
 - Configuration file (`.lullabot-project.yml`)
-- Rules files (`.{tool}/rules/*` or tool-specific)
+- Rules files (`.ai/rules/*`)
+- AGENTS.md file (with special handling):
+  - **If created by tool**: Entire file is deleted
+  - **If file existed before**: Only Lullabot comment section is removed, preserving user content
 - Memory bank files (noted but not removed as they may be used by other projects)
 
 ## Supported Tools
@@ -247,14 +398,30 @@ lullabot-project remove --force --verbose
 ### Cursor
 
 - **Memory Bank**: Uses `npx cursor-bank init`
-- **Rules Path**: `.cursor/rules`
+- **Rules Path**: `.ai/rules/` (centralized)
+- **AGENTS.md**: Direct support with `@` link format
 - **Supported Projects**: Drupal
 - **Additional Tasks**: VSCode XDebug setup
+
+### Claude
+
+- **Memory Bank**: Not supported (no external setup available)
+- **Rules Path**: `.ai/rules/` (centralized)
+- **AGENTS.md**: Uses `claude.md` wrapper with `@` link format
+- **Supported Projects**: Drupal
 
 ### Windsurf
 
 - **Memory Bank**: Not supported (no external setup available)
-- **Rules Path**: `.windsurf/rules`
+- **Rules Path**: `.ai/rules/` (centralized)
+- **AGENTS.md**: Uses `.windsurf/rules/agents.md` wrapper with markdown link format
+- **Supported Projects**: Drupal
+
+### GitHub Copilot
+
+- **Memory Bank**: Not supported (no external setup available)
+- **Rules Path**: `.ai/rules/` (centralized)
+- **AGENTS.md**: Uses `.github/copilot-instructions.md` wrapper with markdown link format
 - **Supported Projects**: Drupal
 
 ### VSCode
@@ -276,10 +443,25 @@ tools:
       rules:
         name: "Project Rules"
         type: "copy-files"
-        source: "assets/rules/newtool/{project-type}/"
-        target: ".newtool/rules/"
+        source: "assets/rules/{project-type}/"
+        target: ".ai/rules"
         required: false
         prompt: "Would you like to install project-specific rules and guidelines?"
+      agents-md:
+        name: "AGENTS.md"
+        type: "agents-md"
+        source: "assets/AGENTS.md"
+        target: "."
+        link-type: "markdown"  # or "@"
+        required: false
+        prompt: "Would you like to set up AGENTS.md with project-specific rules?"
+      wrapper:
+        name: "newtool.md Wrapper"
+        type: "copy-files"
+        source: "assets/wrappers/"
+        items: ["newtool.md"]
+        required: false
+        prompt: "Would you like to create a wrapper file for New Tool?"
 ```
 
 ## Task System
@@ -326,8 +508,8 @@ Copy project-specific files to tool locations. Rules are pulled from the Git rep
 rules:
   name: "Project Rules"
   type: "copy-files"
-  source: "assets/rules/cursor/{project-type}/"
-  target: ".cursor/rules/"
+  source: "assets/rules/{project-type}/"
+  target: ".ai/rules"
   required: false
   prompt: "Would you like to install project-specific rules and guidelines?"
 ```
@@ -342,19 +524,39 @@ rules:
   ```yaml
   rules:
     type: "copy-files"
-    source: "assets/rules/cursor/{project-type}/"
-    target: ".cursor/rules/"
+    source: "assets/rules/{project-type}/"
+    target: ".ai/rules"
   ```
 
 - **Copy specific files only**:
   ```yaml
   rules:
     type: "copy-files"
-    source: "assets/rules/cursor/{project-type}/"
-    target: ".cursor/rules/"
+    source: "assets/rules/{project-type}/"
+    target: ".ai/rules"
     items: ["coding-standards.md", "ai-prompts.md"]
   ```
 
+
+#### `agents-md` - Create/Update AGENTS.md
+
+Create or update the AGENTS.md file with project-specific rule references:
+
+```yaml
+agents-md:
+  name: "AGENTS.md"
+  type: "agents-md"
+  source: "assets/AGENTS.md"
+  target: "."
+  link-type: "@"  # or "markdown"
+  required: false
+  prompt: "Would you like to set up AGENTS.md with project-specific rules?"
+```
+
+**Configuration:**
+- `source`: Template file for AGENTS.md
+- `target`: Target directory (usually "." for project root)
+- `link-type`: Link format for file references ("@" or "markdown")
 
 #### `command` - Execute Commands
 
@@ -373,7 +575,7 @@ custom-setup:
 
 **Required Fields:**
 - `name`: Human-readable task name
-- `type`: Task type (`package-install`, `copy-files`, `command`)
+- `type`: Task type (`package-install`, `copy-files`, `agents-md`, `command`)
 - `required`: Whether the task is required (true) or optional (false)
 
 **Optional Fields:**
@@ -454,7 +656,7 @@ projects:
         - "src/"
 ```
 
-Then create the rules directory structure for each tool: `assets/rules/{tool}/{project-type}/`
+Then create the rules directory structure: `assets/rules/{project-type}/`
 
 ## Configuration File
 
@@ -477,9 +679,15 @@ installation:
   toolVersion: "1.0.0"
 
 files:
-  - ".cursor/rules/ai-prompts.md"
-  - ".cursor/rules/coding-standards.md"
-  - ".cursor/rules/project-rules.md"
+  - path: ".ai/rules/ai-prompts.md"
+    originalHash: "abc123..."
+  - path: ".ai/rules/coding-standards.md"
+    originalHash: "def456..."
+  - path: ".ai/rules/project-rules.md"
+    originalHash: "ghi789..."
+  - path: "AGENTS.md"
+    originalHash: "jkl012..."
+    preExisting: false
 
 packages:
   memory-bank:
@@ -511,9 +719,10 @@ The tool installs comprehensive rules for Drupal development:
 
 ### Rules Location
 
-Rules are installed in tool-specific locations:
-- **Cursor**: `.cursor/rules/`
-- **Windsurf**: `.windsurf/rules/`
+Rules are installed in a centralized location:
+- **All Tools**: `.ai/rules/`
+
+This centralized approach allows all AI tools to reference the same set of project-specific rules through the AGENTS.md standardization system.
 
 ### Git-Based File Access
 
@@ -559,6 +768,37 @@ ls -la
 
 # Ensure you have write access to the current directory
 ```
+
+### AGENTS.md Issues
+
+#### AGENTS.md not created
+- Ensure you selected a tool that supports AGENTS.md (Cursor, Claude, Windsurf, GitHub Copilot, Gemini)
+- Make sure you chose the "AGENTS.md" task during setup
+
+#### Missing file references in AGENTS.md
+- Verify you selected the "Project Rules" task during setup to copy files to `.ai/rules/` directory first
+- Check that `.ai/rules/` directory contains the expected rule files
+
+#### Wrapper files not working
+- Ensure wrapper files (like `claude.md`) contain the `@AGENTS.md` reference
+- Verify wrapper files are in the correct location for your tool:
+  - `claude.md` in project root
+  - `.windsurf/rules/agents.md` for Windsurf
+  - `.github/copilot-instructions.md` for GitHub Copilot
+
+#### Custom content lost
+- The tool preserves content outside the `<!-- Lullabot Project Start -->` and `<!-- Lullabot Project End -->` markers
+- Make sure your custom content is outside these comment sections
+
+#### Tool doesn't recognize AGENTS.md
+- Some tools may need to be restarted after AGENTS.md is created or updated
+- Clear the tool's cache if available
+- Verify the wrapper file syntax is correct for your specific tool
+
+#### AGENTS.md removal issues
+- **File not removed**: Check if AGENTS.md is tracked in `.lullabot-project.yml` - it should be listed in the `files` section
+- **Comment section not removed**: Ensure the file has the `preExisting: true` flag in the configuration if it existed before tool setup
+- **File deleted when it should be preserved**: The tool deletes the entire file if it was created by the tool, or removes only the Lullabot comment section if it existed before
 
 #### "Configuration appears corrupted"
 ```bash
@@ -609,6 +849,37 @@ lullabot-project init -i cursor -p drupal --skip-tasks memory-bank --dry-run
 lullabot-project update --force --dry-run
 ```
 
+## Local Development Mode
+
+The tool supports a `--local` flag for development and testing purposes. This mode allows you to use local files instead of pulling from the Git repository.
+
+### When to Use Local Mode
+
+- **Development**: When you're working on the tool itself and want to test changes
+- **Testing**: When you want to test new assets before committing them to Git
+- **Offline Development**: When you don't have access to the Git repository
+
+### How It Works
+
+```bash
+# Use local files instead of Git repository
+lullabot-project init --local -t cursor -p drupal
+lullabot-project update --local
+```
+
+**Local Mode Behavior:**
+- Files are copied from the local `assets/` directory instead of the Git repository
+- No network access required
+- Useful for testing new files before they're committed and tagged
+- Falls back to Git if local files are not found
+
+### Development Workflow
+
+1. **Make changes** to assets in the local repository
+2. **Test locally** using `--local` flag
+3. **Commit and tag** changes in Git
+4. **Test with Git** using normal commands
+
 ## Development
 
 ### Project Structure
@@ -629,16 +900,16 @@ lullabot-project/
 │   └── config.yml (Tool and project definitions)
 ├── assets/
 │   ├── rules/
-│   │   ├── cursor/
-│   │   │   └── drupal/
-│   │   │       ├── coding-standards.md
-│   │   │       ├── ai-prompts.md
-│   │   │       └── project-rules.md
-│   │   └── windsurf/
-│   │       └── drupal/
-│   │           ├── coding-standards.md
-│   │           ├── ai-prompts.md
-│   │           └── project-rules.md
+│   │   └── drupal/
+│   │       ├── coding-standards.md
+│   │       ├── ai-prompts.md
+│   │       └── project-rules.md
+│   ├── wrappers/
+│   │   ├── claude.md
+│   │   ├── windsurf.md
+│   │   ├── github-copilot.md
+│   │   └── gemini.md
+│   ├── AGENTS.md
 │   └── vscode/
 │       └── launch.json
 └── tests/

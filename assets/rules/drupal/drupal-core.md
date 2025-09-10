@@ -1,16 +1,4 @@
----
-description: >
-  Drupal 10 core standards & your team’s personal preferences. Ensures strict
-  typing, DI, visibility, final classes, and hook patterns.
-globs:
-  - '**/*.php'
-  - '**/*.module'
-  - '**/*.install'
-  - '**/*.services.yml'
-alwaysApply: true
----
-
-# Drupal 10 Core Rules
+# Drupal 10 Core Rules
 
 1. **Strict Types & PSR‑12**
 
@@ -35,7 +23,7 @@ alwaysApply: true
 
 4. **Hook Implementations**
    - Thin wrapper: delegate to an invokable class with the `@Hook` attribute.
-     See OOP hooks: https://api.drupal.org/api/drupal/core%21lib%21Drupal%21Core%21Hook%21Attribute%21Hook.php/class/Hook/11.x
+     See OOP hooks: https://api.drupal.org/api/drupal/core%21lib%21Drupal%21Core%21Hook%21Attribute%21Hook.php/class/Hook/11.x
    - Provide a `LegacyHook` bridge for procedural modules:
      https://www.drupal.org/node/3442349
 
@@ -54,7 +42,7 @@ alwaysApply: true
    - Never commit `vendor/`.
 
 7. **Coding Standards & Checks**
-   - 2‑space indent, 80–120 col soft limit.
+   - 2‑space indent, 80–120 col soft limit.
    - Run `phpcbf --standard=Drupal,DrupalPractice` on staged files.
 
 8. **Self‑Verification Checklist**

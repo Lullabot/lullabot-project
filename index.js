@@ -33,6 +33,10 @@ program
   .option('--skip-validation', 'Skip project type validation')
   .option('--dry-run', 'Show what would be done without executing')
   .option('-F, --force', 'Force re-initialization (overwrites existing files)')
+  .option(
+    '--local',
+    'Use local files instead of Git repository (for development)'
+  )
   .action(initCommand);
 
 program
@@ -46,6 +50,10 @@ program
   .option('-v, --verbose', 'Verbose output')
   .option('--dry-run', 'Show what would be updated without executing')
   .option('-F, --force', 'Force update - recreate configuration if corrupted')
+  .option(
+    '--local',
+    'Use local files instead of Git repository (for development)'
+  )
   .action(updateCommand);
 
 program

@@ -9,6 +9,8 @@ const __dirname = path.dirname(__filename);
 
 // Import the module under test
 const fileOperations = await import('../../src/file-operations.js');
+// Import copyFiles from task type module for testing
+const { copyFiles } = await import('../../src/task-types/copy-files.js');
 
 describe('File Operations Module - Comprehensive', () => {
   let testDir;
@@ -46,7 +48,7 @@ describe('File Operations Module - Comprehensive', () => {
       await fs.ensureDir(path.join(sourceDir, 'subdir'));
       await fs.writeFile(path.join(sourceDir, 'subdir', 'file3.txt'), 'content3');
 
-      const result = await fileOperations.copyFiles(sourceDir, targetDir, true);
+      const result = await copyFiles(sourceDir, targetDir, true);
 
       expect(result).toHaveLength(3); // file1.txt, file2.txt, subdir
       expect(await fs.pathExists(path.join(targetDir, 'file1.txt'))).toBe(true);
@@ -65,7 +67,7 @@ describe('File Operations Module - Comprehensive', () => {
       await fs.writeFile(path.join(sourceDir, 'file3.txt'), 'content3');
 
       const items = ['file1.txt', 'file3.txt'];
-      const result = await fileOperations.copyFiles(sourceDir, targetDir, true, items);
+      const result = await copyFiles(sourceDir, targetDir, true, items);
 
       expect(result).toHaveLength(2);
       expect(await fs.pathExists(path.join(targetDir, 'file1.txt'))).toBe(true);
@@ -78,7 +80,7 @@ describe('File Operations Module - Comprehensive', () => {
       const targetDir = path.join(testDir, 'target');
 
       await expect(
-        fileOperations.copyFiles(nonExistentDir, targetDir)
+        copyFiles(nonExistentDir, targetDir)
       ).rejects.toThrow('Source directory not found');
     });
 
@@ -88,7 +90,7 @@ describe('File Operations Module - Comprehensive', () => {
       await fs.ensureDir(sourceDir);
       await fs.writeFile(path.join(sourceDir, 'test.txt'), 'content');
 
-      const result = await fileOperations.copyFiles(sourceDir, targetDir);
+      const result = await copyFiles(sourceDir, targetDir);
 
       expect(await fs.pathExists(targetDir)).toBe(true);
       expect(await fs.pathExists(path.join(targetDir, 'test.txt'))).toBe(true);
@@ -103,7 +105,7 @@ describe('File Operations Module - Comprehensive', () => {
       // Create a file with a potentially dangerous name
       await fs.writeFile(path.join(sourceDir, 'normal.txt'), 'content');
 
-      const result = await fileOperations.copyFiles(sourceDir, targetDir);
+      const result = await copyFiles(sourceDir, targetDir);
 
       expect(result).toHaveLength(1);
       // The path should be relative to the current working directory
@@ -121,9 +123,9 @@ describe('File Operations Module - Comprehensive', () => {
       console.log = jest.fn((...args) => logs.push(args.join(' ')));
 
       try {
-        await fileOperations.copyFiles(sourceDir, targetDir, true);
-        expect(logs.some(log => log.includes('Copying: test.txt'))).toBe(true);
-        expect(logs.some(log => log.includes('Copied 1 items'))).toBe(true);
+        await copyFiles(sourceDir, targetDir, true);
+        expect(logs.some(log => log.includes('Copying test.txt'))).toBe(true);
+        expect(logs.some(log => log.includes('Copied files to'))).toBe(true);
       } finally {
         console.log = originalLog;
       }
@@ -132,9 +134,10 @@ describe('File Operations Module - Comprehensive', () => {
 
   describe('executeTask', () => {
     it('should execute copy-files task correctly', async () => {
-      // Create source directory in the tool's directory structure
-      const toolDir = path.dirname(new URL(import.meta.url).pathname);
-      const sourceDir = path.join(path.dirname(toolDir), '..', 'test-source');
+      // Create the test-source directory that the task execution expects
+      // The copy-files task resolves non-assets sources relative to src/ directory
+      const srcDir = path.join(process.cwd(), 'src');
+      const sourceDir = path.join(srcDir, 'test-source');
       const targetDir = path.join(testDir, 'target');
 
       await fs.ensureDir(sourceDir);
@@ -145,18 +148,19 @@ describe('File Operations Module - Comprehensive', () => {
         id: 'test-copy',
         name: 'Test Copy',
         type: 'copy-files',
-        source: 'test-source', // This will be resolved relative to tool directory
-        target: path.relative(testDir, targetDir)
+        source: sourceDir, // Use full path to source directory
+        target: targetDir
       };
 
-      process.chdir(testDir);
-      const result = await fileOperations.executeTask(task, 'cursor', 'drupal', true);
+      try {
+        const result = await fileOperations.executeTask(task, 'cursor', 'drupal', true);
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
-
-      // Clean up
-      await fs.remove(sourceDir);
+        expect(Array.isArray(result)).toBe(true);
+        expect(result.length).toBeGreaterThan(0);
+      } finally {
+        // Clean up
+        await fs.remove(sourceDir);
+      }
     });
 
     it('should execute package-install task correctly', async () => {
@@ -177,7 +181,7 @@ describe('File Operations Module - Comprehensive', () => {
       expect(result.packageInfo).toBeDefined();
     });
 
-    it('should execute command task correctly', async () => {
+    it('should reject command task (removed for security)', async () => {
       const task = {
         id: 'test-command',
         name: 'Test Command',
@@ -185,10 +189,9 @@ describe('File Operations Module - Comprehensive', () => {
         command: 'echo "test command"'
       };
 
-      const result = await fileOperations.executeTask(task, 'cursor', 'drupal', true);
-
-      expect(result).toBeDefined();
-      expect(result.output).toBeDefined();
+      await expect(
+        fileOperations.executeTask(task, 'cursor', 'drupal', true)
+      ).rejects.toThrow('Unknown task type: command');
     });
 
     it('should handle unknown task type', async () => {
@@ -261,7 +264,7 @@ describe('File Operations Module - Comprehensive', () => {
   });
 
   describe('executeCommandTask (via executeTask)', () => {
-    it('should execute command task via executeTask', async () => {
+    it('should reject command task via executeTask (removed for security)', async () => {
       const task = {
         id: 'test-command',
         name: 'Test Command',
@@ -269,10 +272,9 @@ describe('File Operations Module - Comprehensive', () => {
         command: 'echo "test command"'
       };
 
-      const result = await fileOperations.executeTask(task, 'cursor', 'drupal', true);
-
-      expect(result).toBeDefined();
-      expect(result.output).toBeDefined();
+      await expect(
+        fileOperations.executeTask(task, 'cursor', 'drupal', true)
+      ).rejects.toThrow('Unknown task type: command');
     });
   });
 
@@ -468,9 +470,9 @@ describe('File Operations Module - Comprehensive', () => {
 
       // Create multiple copy operations
       const operations = [
-        fileOperations.copyFiles(sourceDir, targetDir),
-        fileOperations.copyFiles(sourceDir, targetDir),
-        fileOperations.copyFiles(sourceDir, targetDir)
+        copyFiles(sourceDir, targetDir),
+        copyFiles(sourceDir, targetDir),
+        copyFiles(sourceDir, targetDir)
       ];
 
       const results = await Promise.all(operations);
@@ -495,7 +497,7 @@ describe('File Operations Module - Comprehensive', () => {
 
       await fs.writeFile(path.join(deepPath, 'test.txt'), 'content');
 
-      const result = await fileOperations.copyFiles(sourceDir, targetDir);
+      const result = await copyFiles(sourceDir, targetDir);
 
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBeGreaterThan(0);

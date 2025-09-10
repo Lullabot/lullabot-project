@@ -3,7 +3,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 import yaml from 'js-yaml';
 import chalk from 'chalk';
-import { getFilesFromGit } from './git-operations.js';
+import { getTaskExecutor } from './task-types/index.js';
 
 /**
  * Get the current tool version from package.json.
@@ -35,259 +35,6 @@ function getToolVersion() {
     }
   }
   return '1.0.0';
-}
-
-/**
- * Copy files from Git repository to the appropriate location.
- * This function handles copying files from the Git repository using the source path
- * specified in the task configuration.
- *
- * @param {string} sourcePath - Source path in the repository (from task config)
- * @param {string} targetPath - Target path where files should be copied
- * @param {boolean} verbose - Whether to show detailed output
- * @param {string[]} items - Optional array of specific items to copy
- * @param {Object} dependencies - Injected dependencies for file tracking
- * @returns {Promise<Object[]>} Array of file tracking objects with paths and hashes
- */
-async function copyFilesFromGit(
-  sourcePath,
-  targetPath,
-  verbose = false,
-  items = null,
-  dependencies = {}
-) {
-  try {
-    // Get the list of files that exist before copying
-    const existingFiles = new Set();
-    try {
-      await fs.access(targetPath);
-      const existingItems = await fs.readdir(targetPath);
-      for (const item of existingItems) {
-        existingFiles.add(item);
-      }
-    } catch (_error) {
-      // Target doesn't exist yet, no existing files
-    }
-
-    if (verbose) {
-      console.log(
-        chalk.gray(`Starting Git copy from ${sourcePath} to ${targetPath}`)
-      );
-    }
-
-    // Use Git operations to get files from the repository
-    // Pass items array to filter what gets copied
-    try {
-      const gitResult = await getFilesFromGit(
-        sourcePath,
-        targetPath,
-        verbose,
-        items
-      );
-
-      if (verbose) {
-        console.log(chalk.gray(`Git operation result: ${gitResult}`));
-      }
-    } catch (gitError) {
-      if (verbose) {
-        console.log(
-          chalk.red(`Git operation failed with error: ${gitError.message}`)
-        );
-        console.log(chalk.red(`Error stack: ${gitError.stack}`));
-      }
-      throw gitError;
-    }
-
-    // Get list of copied files for tracking with hashes
-    const trackedFiles = [];
-
-    // If we have specific items to copy, track those
-    if (items && Array.isArray(items) && items.length > 0) {
-      for (const item of items) {
-        const itemPath = path.join(targetPath, item);
-        const relativePath = path.relative(process.cwd(), itemPath);
-
-        // Additional safety: ensure the path is within the current directory
-        const resolvedPath = path.resolve(process.cwd(), relativePath);
-        const currentDir = process.cwd();
-
-        if (
-          !resolvedPath.startsWith(currentDir + path.sep) &&
-          resolvedPath !== currentDir
-        ) {
-          throw new Error(
-            `Security violation: Attempted to track file outside project directory: ${resolvedPath}`
-          );
-        }
-
-        // Track file with hash if dependencies are provided
-        if (dependencies.trackInstalledFile) {
-          const fileInfo = await dependencies.trackInstalledFile(
-            relativePath,
-            dependencies
-          );
-          trackedFiles.push(fileInfo);
-        } else {
-          // Fallback to simple path tracking
-          trackedFiles.push({ path: relativePath });
-        }
-      }
-    } else {
-      // Fallback: track files that weren't there before copying
-      try {
-        await fs.access(targetPath);
-        const targetContents = await fs.readdir(targetPath);
-
-        for (const item of targetContents) {
-          if (!existingFiles.has(item)) {
-            const itemPath = path.join(targetPath, item);
-            const relativePath = path.relative(process.cwd(), itemPath);
-
-            const resolvedPath = path.resolve(process.cwd(), relativePath);
-            const currentDir = process.cwd();
-
-            if (
-              !resolvedPath.startsWith(currentDir + path.sep) &&
-              resolvedPath !== currentDir
-            ) {
-              throw new Error(
-                `Security violation: Attempted to track file outside project directory: ${resolvedPath}`
-              );
-            }
-
-            // Track file with hash if dependencies are provided
-            if (dependencies.trackInstalledFile) {
-              const fileInfo = await dependencies.trackInstalledFile(
-                relativePath,
-                dependencies
-              );
-              trackedFiles.push(fileInfo);
-            } else {
-              // Fallback to simple path tracking
-              trackedFiles.push({ path: relativePath });
-            }
-          }
-        }
-      } catch (_error) {
-        // Target doesn't exist, no files to track
-      }
-    }
-
-    if (verbose) {
-      console.log(chalk.green(`✅ Copied files to ${targetPath}`));
-      console.log(chalk.gray(`Tracked ${trackedFiles.length} files`));
-    }
-
-    return trackedFiles;
-  } catch (error) {
-    if (verbose) {
-      console.log(chalk.red(`Git copy failed: ${error.message}`));
-    }
-    throw new Error(`Failed to copy files from Git: ${error.message}`);
-  }
-}
-
-/**
- * Copy files from a source directory to a target directory.
- * This is a generic function for copying any files from the local filesystem.
- * Supports copying specific items or all files in the source directory.
- *
- * @param {string} sourceDir - Source directory path
- * @param {string} targetDir - Target directory path
- * @param {boolean} verbose - Whether to show detailed output
- * @param {string[]} items - Optional array of specific items to copy
- * @param {Object} dependencies - Injected dependencies for file tracking
- * @returns {Promise<Object[]>} Array of file tracking objects with paths and hashes
- */
-async function copyFiles(
-  sourceDir,
-  targetDir,
-  verbose = false,
-  items = null,
-  dependencies = {}
-) {
-  try {
-    await fs.access(sourceDir);
-  } catch (_error) {
-    throw new Error(`Source directory not found: ${sourceDir}`);
-  }
-
-  // Create target directory if it doesn't exist
-  await fs.ensureDir(targetDir);
-
-  // Determine what to copy
-  let itemsToCopy = [];
-
-  if (items && Array.isArray(items) && items.length > 0) {
-    // Copy only specified items
-    itemsToCopy = items;
-  } else {
-    // Copy all files and directories
-    const allItems = await fs.readdir(sourceDir);
-    itemsToCopy = allItems;
-  }
-
-  const trackedFiles = [];
-
-  // Copy each item from source to target
-  for (const item of itemsToCopy) {
-    const sourceItem = path.join(sourceDir, item);
-    const targetItem = path.join(targetDir, item);
-
-    // Check if the item exists in the source directory
-    try {
-      await fs.access(sourceItem);
-    } catch (_error) {
-      if (verbose) {
-        console.log(
-          chalk.yellow(`  Warning: ${item} not found in source directory`)
-        );
-      }
-      continue;
-    }
-
-    if (verbose) {
-      console.log(chalk.gray(`  Copying: ${item}`));
-    }
-
-    await fs.copy(sourceItem, targetItem);
-
-    // Store a normalized, safe file path for tracking
-    const normalizedPath = path.relative(process.cwd(), targetItem);
-
-    // Additional safety: ensure the path is within the current directory
-    const resolvedPath = path.resolve(process.cwd(), normalizedPath);
-    const currentDir = process.cwd();
-
-    if (
-      !resolvedPath.startsWith(currentDir + path.sep) &&
-      resolvedPath !== currentDir
-    ) {
-      throw new Error(
-        `Security violation: Attempted to copy file outside project directory: ${resolvedPath}`
-      );
-    }
-
-    // Track file with hash if dependencies are provided
-    if (dependencies.trackInstalledFile) {
-      const fileInfo = await dependencies.trackInstalledFile(
-        normalizedPath,
-        dependencies
-      );
-      trackedFiles.push(fileInfo);
-    } else {
-      // Fallback to simple path tracking
-      trackedFiles.push({ path: normalizedPath });
-    }
-  }
-
-  if (verbose) {
-    console.log(
-      chalk.green(`✅ Copied ${trackedFiles.length} items to ${targetDir}`)
-    );
-  }
-
-  return trackedFiles;
 }
 
 /**
@@ -438,7 +185,7 @@ async function getCreatedFiles(config) {
 
 /**
  * Execute a task based on its type and configuration.
- * Routes to the appropriate execution function based on task type.
+ * Routes to the appropriate execution function based on task type using the modular system.
  *
  * @param {Object} task - Task configuration object
  * @param {string} tool - The tool identifier
@@ -461,158 +208,16 @@ async function executeTask(
   }
 
   try {
-    // Route to appropriate execution function based on task type
-    switch (task.type) {
-      case 'command':
-        return await executeCommandTask(task, verbose);
-      case 'copy-files':
-        return await executeCopyFilesTask(
-          task,
-          tool,
-          projectType,
-          verbose,
-          dependencies
-        );
-      case 'package-install':
-        return await executePackageInstallTask(task, verbose);
-      default:
-        throw new Error(`Unknown task type: ${task.type}`);
-    }
+    const taskExecutor = getTaskExecutor(task.type);
+    return await taskExecutor.execute(
+      task,
+      tool,
+      projectType,
+      verbose,
+      dependencies
+    );
   } catch (error) {
     throw new Error(`Task '${taskId}' failed: ${error.message}`);
-  }
-}
-
-/**
- * Execute a command task by running the specified shell command.
- * Extracts package information if the command is an npx command.
- *
- * @param {Object} task - Task configuration object
- * @param {boolean} verbose - Whether to show detailed output
- * @returns {Promise<Object>} Command execution result with output and package info
- */
-async function executeCommandTask(task, verbose = false) {
-  const command = task.command;
-
-  if (verbose) {
-    console.log(chalk.gray(`Executing command: ${command}`));
-  }
-
-  try {
-    // Execute the shell command
-    const output = execSync(command, {
-      encoding: 'utf8',
-      stdio: verbose ? 'inherit' : 'pipe'
-    });
-
-    if (verbose) {
-      console.log(chalk.gray('Command completed successfully'));
-    }
-
-    // Extract package info for version tracking if it's an npx command
-    const packageName = command.includes('npx') ? command.split(' ')[1] : null;
-    const packageInfo = packageName
-      ? await getPackageVersion(packageName, false)
-      : null;
-
-    return {
-      output: output || 'Command executed successfully',
-      packageInfo
-    };
-  } catch (error) {
-    throw new Error(`Command failed: ${error.message}`);
-  }
-}
-
-/**
- * Execute a copy-files task by copying files from source to target.
- * Determines whether to use Git operations or local filesystem based on the source path.
- *
- * @param {Object} task - Task configuration object
- * @param {string} tool - The tool identifier
- * @param {string} projectType - The project type
- * @param {boolean} verbose - Whether to show detailed output
- * @param {Object} dependencies - Injected dependencies for file tracking
- * @returns {Promise<Object[]>} Array of file tracking objects with paths and hashes
- */
-async function executeCopyFilesTask(
-  task,
-  tool,
-  projectType,
-  verbose = false,
-  dependencies = {}
-) {
-  // Replace placeholders in source and target paths
-  const source = task.source
-    .replace('{tool}', tool)
-    .replace('{project-type}', projectType || '');
-  const target = task.target.replace('{project-type}', projectType || '');
-
-  if (verbose) {
-    console.log(chalk.gray(`Copying files from ${source} to ${target}`));
-  }
-
-  // Check if this is a Git-based source (starts with assets/)
-  if (source.startsWith('assets/')) {
-    // Use Git for files from the repository
-    const items = task.items || null;
-    const result = await copyFilesFromGit(
-      source,
-      target,
-      verbose,
-      items,
-      dependencies
-    );
-    return result;
-  } else {
-    // Use local file system for other files
-    const toolDir = path.dirname(new URL(import.meta.url).pathname);
-    const fullSourcePath = path.join(toolDir, '..', source);
-    const items = task.items || null;
-
-    const result = await copyFiles(
-      fullSourcePath,
-      target,
-      verbose,
-      items,
-      dependencies
-    );
-    return result;
-  }
-}
-
-/**
- * Execute a package installation task by running the install command.
- * Gets package version information after installation.
- *
- * @param {Object} task - Task configuration object
- * @param {boolean} verbose - Whether to show detailed output
- * @returns {Promise<Object>} Installation result with output and package info
- */
-async function executePackageInstallTask(task, verbose = false) {
-  const { package: pkg } = task;
-
-  if (verbose) {
-    console.log(chalk.gray(`Installing package: ${pkg.name}`));
-    console.log(chalk.gray(`Install command: ${pkg['install-command']}`));
-  }
-
-  try {
-    // Execute install command
-    const installOutput = execSync(pkg['install-command'], {
-      encoding: 'utf8',
-      stdio: verbose ? 'inherit' : 'pipe'
-    });
-
-    // Get package version
-    const packageInfo = await getPackageVersion(pkg, verbose);
-
-    return {
-      output: installOutput || 'Package installed successfully',
-      packageInfo
-    };
-  } catch (error) {
-    throw new Error(`Package installation failed: ${error.message}`);
   }
 }
 
@@ -832,8 +437,6 @@ async function isProjectInitialized(dependencies = {}) {
 }
 
 export {
-  copyFiles,
-  copyFilesFromGit,
   executeTask,
   createConfigFile,
   readConfigFile,

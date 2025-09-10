@@ -53,7 +53,9 @@ async function initCommand(options) {
       },
       executeTask: async (task, tool, projectType, verbose, deps) => {
         const { executeTask } = await import('./file-operations.js');
-        return executeTask(task, tool, projectType, verbose, deps);
+        // Add useLocalFiles to the dependencies passed to the task
+        const enhancedDeps = { ...deps, useLocalFiles: options.local || false };
+        return executeTask(task, tool, projectType, verbose, enhancedDeps);
       },
       createConfigFile: async (config, fullConfig) => {
         const { createConfigFile } = await import('./file-operations.js');
@@ -179,7 +181,12 @@ async function updateCommand(options) {
       },
       executeTask: async (task, tool, projectType, verbose, dependencies) => {
         const { executeTask } = await import('./file-operations.js');
-        return executeTask(task, tool, projectType, verbose, dependencies);
+        // Add useLocalFiles to the dependencies passed to the task
+        const enhancedDeps = {
+          ...dependencies,
+          useLocalFiles: options.local || false
+        };
+        return executeTask(task, tool, projectType, verbose, enhancedDeps);
       },
       createConfigFile: async (config, fullConfig) => {
         const { createConfigFile } = await import('./file-operations.js');
@@ -332,7 +339,7 @@ async function removeCommand(options) {
         const { default: inquirer } = await import('inquirer');
         return actualConfirmAction(message, defaultValue, inquirer.prompt);
       },
-      fs: await import('fs-extra'),
+      fs: (await import('fs-extra')).default,
       path: await import('path'),
       chalk,
       logFn: console.log

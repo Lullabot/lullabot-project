@@ -3,6 +3,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
 import chalk from 'chalk';
+import { fileURLToPath } from 'url';
 
 const git = simpleGit();
 
@@ -138,7 +139,8 @@ export async function cloneAndCopyFiles(
   sourcePath,
   targetPath,
   verbose = false,
-  items = null
+  items = null,
+  dependencies = {}
 ) {
   // Create a temporary directory with unique timestamp
   const tempDir = path.join(os.tmpdir(), `lullabot-project-${Date.now()}`);
@@ -207,6 +209,21 @@ export async function cloneAndCopyFiles(
 
     // Check if source exists
     if (!fs.existsSync(fullSourcePath)) {
+      // Try local fallback for development
+      if (dependencies.useLocalFiles) {
+        if (verbose) {
+          console.log(
+            chalk.yellow(`Source not found in Git, trying local fallback...`)
+          );
+        }
+        return await copyFromLocalFiles(
+          sourcePath,
+          targetPath,
+          verbose,
+          items,
+          dependencies
+        );
+      }
       throw new Error(`Source path ${sourcePath} not found in repository`);
     }
 
@@ -219,7 +236,7 @@ export async function cloneAndCopyFiles(
 
     // Copy directory or file
     if (items && Array.isArray(items) && items.length > 0) {
-      // Copy only specified items
+      // Copy only specified items (array syntax)
       if (verbose) {
         console.log(chalk.gray(`Copying specific items: ${items.join(', ')}`));
       }
@@ -245,6 +262,37 @@ export async function cloneAndCopyFiles(
           }
         }
       }
+    } else if (items && typeof items === 'object' && !Array.isArray(items)) {
+      // Copy and rename items (object syntax: { "source.md": "target.md" })
+      if (verbose) {
+        console.log(
+          chalk.gray(`Copying and renaming items: ${JSON.stringify(items)}`)
+        );
+      }
+
+      // Create target directory if it doesn't exist
+      await fs.ensureDir(targetPath);
+
+      // Copy each item with renaming
+      for (const [sourceItem, targetItem] of Object.entries(items)) {
+        const sourceItemPath = path.join(fullSourcePath, sourceItem);
+        const targetItemPath = path.join(targetPath, targetItem);
+
+        if (fs.existsSync(sourceItemPath)) {
+          await fs.copy(sourceItemPath, targetItemPath);
+          if (verbose) {
+            console.log(
+              chalk.gray(`Copied ${sourceItem} to ${targetItemPath}`)
+            );
+          }
+        } else {
+          if (verbose) {
+            console.log(
+              chalk.yellow(`Warning: Item ${sourceItem} not found in source`)
+            );
+          }
+        }
+      }
     } else {
       // Copy entire directory
       await fs.copy(fullSourcePath, targetPath);
@@ -254,6 +302,56 @@ export async function cloneAndCopyFiles(
       console.log(
         chalk.gray(`Successfully copied ${sourcePath} to ${targetPath}`)
       );
+    }
+
+    // If dependencies are provided, track the copied files
+    if (dependencies.trackInstalledFile) {
+      const trackedFiles = [];
+
+      // Track files based on what was copied
+      if (items && Array.isArray(items) && items.length > 0) {
+        // Track specific items (array syntax)
+        for (const item of items) {
+          const targetItemPath = path.join(targetPath, item);
+          if (fs.existsSync(targetItemPath)) {
+            const relativePath = path.relative(process.cwd(), targetItemPath);
+            const fileInfo = await dependencies.trackInstalledFile(
+              relativePath,
+              dependencies
+            );
+            trackedFiles.push(fileInfo);
+          }
+        }
+      } else if (items && typeof items === 'object' && !Array.isArray(items)) {
+        // Track renamed items (object syntax)
+        for (const [, targetItem] of Object.entries(items)) {
+          const targetItemPath = path.join(targetPath, targetItem);
+          if (fs.existsSync(targetItemPath)) {
+            const relativePath = path.relative(process.cwd(), targetItemPath);
+            const fileInfo = await dependencies.trackInstalledFile(
+              relativePath,
+              dependencies
+            );
+            trackedFiles.push(fileInfo);
+          }
+        }
+      } else {
+        // Track entire directory contents
+        if (fs.existsSync(targetPath)) {
+          const targetContents = await fs.readdir(targetPath);
+          for (const item of targetContents) {
+            const itemPath = path.join(targetPath, item);
+            const relativePath = path.relative(process.cwd(), itemPath);
+            const fileInfo = await dependencies.trackInstalledFile(
+              relativePath,
+              dependencies
+            );
+            trackedFiles.push(fileInfo);
+          }
+        }
+      }
+
+      return { files: trackedFiles };
     }
 
     return true;
@@ -286,9 +384,242 @@ export async function getFilesFromGit(
   sourcePath,
   targetPath,
   verbose = false,
-  items = null
+  items = null,
+  dependencies = {}
 ) {
-  return await cloneAndCopyFiles(sourcePath, targetPath, verbose, items);
+  return await cloneAndCopyFiles(
+    sourcePath,
+    targetPath,
+    verbose,
+    items,
+    dependencies
+  );
+}
+
+/**
+ * Copy files from local development directory instead of Git repository.
+ * Used for development workflow when files haven't been committed yet.
+ *
+ * @param {string} sourcePath - Path to source files relative to project root
+ * @param {string} targetPath - Path where files should be copied
+ * @param {boolean} verbose - Whether to show detailed output
+ * @param {Array} items - Specific items to copy (optional)
+ * @param {Object} dependencies - Dependencies object
+ * @returns {Promise<Object>} Result object with files array
+ */
+async function copyFromLocalFiles(
+  sourcePath,
+  targetPath,
+  verbose,
+  items,
+  dependencies
+) {
+  // Get the project root directory (where this tool is located)
+  const currentFile = fileURLToPath(import.meta.url);
+  const currentDir = path.dirname(currentFile);
+  const projectRoot = path.resolve(currentDir, '..');
+
+  // Construct full path to local source
+  const localSourcePath = path.join(projectRoot, sourcePath);
+
+  if (verbose) {
+    console.log(chalk.gray(`Copying from local path: ${localSourcePath}`));
+  }
+
+  // Check if local source exists
+  if (!fs.existsSync(localSourcePath)) {
+    throw new Error(`Local source path ${localSourcePath} not found`);
+  }
+
+  const trackedFiles = [];
+
+  // Check if sourcePath is a file or directory
+  const sourceStats = await fs.stat(localSourcePath);
+
+  if (sourceStats.isFile()) {
+    // Source is a file - copy it directly
+    if (verbose) {
+      console.log(chalk.gray(`Copying file: ${sourcePath}`));
+    }
+
+    // Determine the target file path
+    let finalTargetPath = targetPath;
+
+    // If target is a directory (like '.'), append the filename
+    if (
+      targetPath === '.' ||
+      targetPath.endsWith('/') ||
+      targetPath.endsWith('\\')
+    ) {
+      const fileName = path.basename(sourcePath);
+      finalTargetPath = path.join(targetPath, fileName);
+    }
+
+    // Create target directory if it doesn't exist
+    await fs.ensureDir(path.dirname(finalTargetPath));
+
+    // Copy the file
+    await fs.copy(localSourcePath, finalTargetPath);
+
+    // Track the file
+    const relativePath = path.relative(process.cwd(), finalTargetPath);
+    if (dependencies.trackInstalledFile) {
+      if (verbose) {
+        console.log(chalk.gray(`  Tracking file: ${relativePath}`));
+      }
+      const fileInfo = await dependencies.trackInstalledFile(
+        relativePath,
+        dependencies
+      );
+      trackedFiles.push(fileInfo);
+      if (verbose) {
+        console.log(
+          chalk.gray(`  Tracked file info: ${JSON.stringify(fileInfo)}`)
+        );
+      }
+    } else {
+      if (verbose) {
+        console.log(
+          chalk.yellow(
+            `  No trackInstalledFile function available, using fallback`
+          )
+        );
+      }
+      trackedFiles.push({ path: relativePath });
+    }
+
+    if (verbose) {
+      console.log(chalk.gray(`  Copied: ${sourcePath} to ${finalTargetPath}`));
+    }
+  } else {
+    // Source is a directory - copy items from it
+    if (items && Array.isArray(items) && items.length > 0) {
+      // Copy only specified items (array syntax)
+      if (verbose) {
+        console.log(chalk.gray(`Copying specific items: ${items.join(', ')}`));
+      }
+
+      await fs.ensureDir(targetPath);
+
+      for (const item of items) {
+        const sourceItem = path.join(localSourcePath, item);
+        const targetItem = path.join(targetPath, item);
+
+        if (fs.existsSync(sourceItem)) {
+          await fs.copy(sourceItem, targetItem);
+
+          // Track the file
+          const relativePath = path.relative(process.cwd(), targetItem);
+          if (dependencies.trackInstalledFile) {
+            const fileInfo = await dependencies.trackInstalledFile(
+              relativePath,
+              dependencies
+            );
+            trackedFiles.push(fileInfo);
+          } else {
+            trackedFiles.push({ path: relativePath });
+          }
+
+          if (verbose) {
+            console.log(chalk.gray(`  Copied: ${item}`));
+          }
+        } else {
+          if (verbose) {
+            console.log(
+              chalk.yellow(`  Warning: ${item} not found in local source`)
+            );
+          }
+        }
+      }
+    } else if (items && typeof items === 'object' && !Array.isArray(items)) {
+      // Copy and rename items (object syntax: { "source.md": "target.md" })
+      if (verbose) {
+        console.log(
+          chalk.gray(`Copying and renaming items: ${JSON.stringify(items)}`)
+        );
+      }
+
+      await fs.ensureDir(targetPath);
+
+      for (const [sourceItem, targetItem] of Object.entries(items)) {
+        const sourceItemPath = path.join(localSourcePath, sourceItem);
+        const targetItemPath = path.join(targetPath, targetItem);
+
+        if (fs.existsSync(sourceItemPath)) {
+          await fs.copy(sourceItemPath, targetItemPath);
+
+          // Track the file
+          const relativePath = path.relative(process.cwd(), targetItemPath);
+          if (dependencies.trackInstalledFile) {
+            const fileInfo = await dependencies.trackInstalledFile(
+              relativePath,
+              dependencies
+            );
+            trackedFiles.push(fileInfo);
+          } else {
+            trackedFiles.push({ path: relativePath });
+          }
+
+          if (verbose) {
+            console.log(chalk.gray(`  Copied: ${sourceItem} -> ${targetItem}`));
+          }
+        } else {
+          if (verbose) {
+            console.log(
+              chalk.yellow(`  Warning: ${sourceItem} not found in local source`)
+            );
+          }
+        }
+      }
+    } else {
+      // Copy entire directory
+      try {
+        // Remove target directory if it exists to avoid conflicts
+        if (fs.existsSync(targetPath)) {
+          if (verbose) {
+            console.log(
+              chalk.gray(`  Removing existing target directory: ${targetPath}`)
+            );
+          }
+          await fs.remove(targetPath);
+        }
+
+        await fs.copy(localSourcePath, targetPath);
+
+        // Track all copied files
+        const targetContents = await fs.readdir(targetPath);
+        for (const item of targetContents) {
+          const itemPath = path.join(targetPath, item);
+          const relativePath = path.relative(process.cwd(), itemPath);
+          if (dependencies.trackInstalledFile) {
+            const fileInfo = await dependencies.trackInstalledFile(
+              relativePath,
+              dependencies
+            );
+            trackedFiles.push(fileInfo);
+          } else {
+            trackedFiles.push({ path: relativePath });
+          }
+        }
+
+        if (verbose) {
+          console.log(chalk.gray(`  Copied entire directory: ${sourcePath}`));
+        }
+      } catch (copyError) {
+        if (verbose) {
+          console.log(
+            chalk.red(`  Error copying directory: ${copyError.message}`)
+          );
+        }
+        throw new Error(`Failed to copy directory: ${copyError.message}`);
+      }
+    }
+  }
+
+  return {
+    success: true,
+    files: trackedFiles
+  };
 }
 
 /**

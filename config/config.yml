@@ -1,4 +1,34 @@
 tools:
+  claude:
+    name: "Claude Code"
+    tasks:
+      rules:
+        name: "Project Rules"
+        description: "Copy project-specific files to .ai/"
+        type: "copy-files"
+        source: "assets/rules/{project-type}/"
+        target: ".ai/rules"
+        required: false
+        requires-project: true
+        prompt: "Would you like to install project-specific files and guidelines?"
+      agents-md:
+        name: "AGENTS.md"
+        description: "Create/update AGENTS.md with project-specific rules"
+        type: "agents-md"
+        source: "assets/AGENTS.md"
+        target: "."
+        link-type: "@"
+        required: false
+        prompt: "Would you like to set up AGENTS.md with project-specific rules?"
+      wrapper:
+        name: "claude.md Wrapper"
+        description: "Create claude.md wrapper file"
+        type: "copy-files"
+        source: "assets/wrappers/"
+        items: ["claude.md"]
+        target: "."
+        required: false
+        prompt: "Would you like to create a claude.md wrapper file?"
   cursor:
     name: "Cursor"
     tasks:
@@ -15,13 +45,22 @@ tools:
         prompt: "Would you like to set up a memory bank for AI assistance?"
       rules:
         name: "Project Rules"
-        description: "Copy project-specific rules to .cursor/rules/"
+        description: "Copy project-specific files to .ai/"
         type: "copy-files"
-        source: "assets/rules/cursor/{project-type}/"
-        target: ".cursor/rules/"
+        source: "assets/rules/{project-type}/"
+        target: ".ai/rules"
         required: false
         requires-project: true
-        prompt: "Would you like to install project-specific rules and guidelines?"
+        prompt: "Would you like to install project-specific files and guidelines?"
+      agents-md:
+        name: "AGENTS.md"
+        description: "Create/update AGENTS.md with project-specific rules"
+        type: "agents-md"
+        source: "assets/AGENTS.md"
+        target: "."
+        link-type: "@"
+        required: false
+        prompt: "Would you like to set up AGENTS.md with project-specific rules?"
       vscode-xdebug:
         name: "VSCode XDebug"
         description: "Set up VSCode XDebug for PHP debugging"
@@ -32,15 +71,6 @@ tools:
         target: ".vscode/"
         required: false
         prompt: "Would you like to set up VSCode XDebug for PHP debugging?"
-      agents:
-        name: "AGENTS.md"
-        description: "Copy AGENTS.md to the project root"
-        type: "copy-files"
-        source: "assets/rules"
-        items: ["AGENTS.md"]
-        target: "."
-        required: false
-        prompt: "Would you like to install the AGENTS.md file?"
       # git-hooks:
       #   name: "Git Hooks"
       #   description: "Set up Git hooks with Husky"
@@ -52,40 +82,66 @@ tools:
       #     version-command: "npm list husky"
       #   required: false
       #   prompt: "Would you like to set up Git hooks with Husky?"
-  # windsurf:
-  #   name: "Windsurf"
-  #   tasks:
-  #     rules:
-  #       name: "Project Rules"
-  #       description: "Copy project-specific rules to .windsurf/rules/"
-  #       type: "copy-files"
-  #       source: "assets/rules/windsurf/{project-type}/"
-  #       target: ".windsurf/rules/"
-  #       # Optional: specify individual files/directories to copy
-  #       # items: ["coding-standards.md", "ai-prompts.md", "project-rules.md"]
-  #       required: false
-  #       prompt: "Would you like to install project-specific rules and guidelines?"
-  claude:
-    name: "Claude Code"
+  gemini:
+    name: "Gemini"
     tasks:
       rules:
         name: "Project Rules"
-        description: "Copy project-specific rules to .claude"
+        description: "Copy project-specific files to .ai/"
         type: "copy-files"
-        source: "assets/rules/claude/{project-type}/"
-        target: ".claude/"
-        requires-project: true
+        source: "assets/rules/{project-type}/"
+        target: ".ai/rules"
         required: false
-        prompt: "Would you like to install project-specific rules and guidelines?"
-      agents:
+        requires-project: true
+        prompt: "Would you like to install project-specific files and guidelines?"
+      agents-md:
         name: "AGENTS.md"
-        description: "Copy AGENTS.md to the project root"
+        description: "Create/update AGENTS.md with project-specific rules"
+        type: "agents-md"
+        source: "assets/AGENTS.md"
+        target: "."
+        link-type: "markdown"
+        required: false
+        prompt: "Would you like to set up AGENTS.md with project-specific rules?"
+      wrapper:
+        name: "Gemini Wrapper"
+        description: "Create Gemini wrapper file"
         type: "copy-files"
-        source: "assets/rules"
-        items: ["AGENTS.md"]
+        source: "assets/wrappers/"
+        items: { "gemini.md": "GEMINI.md" }
         target: "."
         required: false
-        prompt: "Would you like to install the AGENTS.md file?"
+        prompt: "Would you like to create a Gemini wrapper file?"
+  github-copilot:
+    name: "GitHub Copilot"
+    tasks:
+      rules:
+        name: "Project Rules"
+        description: "Copy project-specific files to .ai/"
+        type: "copy-files"
+        source: "assets/rules/{project-type}/"
+        target: ".ai/rules"
+        required: false
+        requires-project: true
+        prompt: "Would you like to install project-specific files and guidelines?"
+      agents-md:
+        name: "AGENTS.md"
+        description: "Create/update AGENTS.md with project-specific rules"
+        type: "agents-md"
+        source: "assets/AGENTS.md"
+        target: "."
+        link-type: "markdown"
+        required: false
+        prompt: "Would you like to set up AGENTS.md with project-specific rules?"
+      wrapper:
+        name: "GitHub Copilot Wrapper"
+        description: "Create GitHub Copilot wrapper file"
+        type: "copy-files"
+        source: "assets/wrappers/"
+        items: { "github-copilot.md": "copilot-instructions.md" }
+        target: ".github/"
+        required: false
+        prompt: "Would you like to create a GitHub Copilot wrapper file?"
   vscode:
     name: "VSCode"
     tasks:
@@ -99,6 +155,36 @@ tools:
         target: ".vscode/"
         required: false
         prompt: "Would you like to set up VSCode XDebug for PHP debugging?"
+  windsurf:
+    name: "Windsurf"
+    tasks:
+      rules:
+        name: "Project Rules"
+        description: "Copy project-specific files to .ai/"
+        type: "copy-files"
+        source: "assets/rules/{project-type}/"
+        target: ".ai/rules"
+        required: false
+        requires-project: true
+        prompt: "Would you like to install project-specific files and guidelines?"
+      agents-md:
+        name: "AGENTS.md"
+        description: "Create/update AGENTS.md with project-specific rules"
+        type: "agents-md"
+        source: "assets/AGENTS.md"
+        target: "."
+        link-type: "markdown"
+        required: false
+        prompt: "Would you like to set up AGENTS.md with project-specific rules?"
+      wrapper:
+        name: "Windsurf Wrapper"
+        description: "Create Windsurf wrapper file"
+        type: "copy-files"
+        source: "assets/wrappers/"
+        items: { "windsurf.md": "agents.md" }
+        target: ".windsurf/rules/"
+        required: false
+        prompt: "Would you like to create a Windsurf wrapper file?"
 projects:
   drupal:
     name: "Drupal"
@@ -112,16 +198,16 @@ projects:
         - "README.md"
         - "package.json"
         - "web/sites/default/settings.php"
-  project-management:
-    name: "Project Management"
-  sales-marketing:
-    name: "Sales and Marketing"
   content-strategy:
     name: "Content Strategy"
   design:
     name: "Design"
+  project-management:
+    name: "Project Management"
   qa:
     name: "Quality Assurance"
+  sales-marketing:
+    name: "Sales and Marketing"
   # react:
   #   name: "React"
   #   validation:
