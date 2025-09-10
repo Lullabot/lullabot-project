@@ -803,7 +803,7 @@ async function removeSetup(options, dependencies) {
 
     // Perform removal
     spinner?.start('Removing files...');
-    const removedFiles = await performRemoval(
+    const removalResult = await performRemoval(
       currentConfig,
       options,
       dependencies
@@ -811,7 +811,7 @@ async function removeSetup(options, dependencies) {
     spinner?.succeed('Removal completed successfully!');
 
     // Display removal summary
-    displayRemovalSummary(removedFiles, { chalk, logFn });
+    displayRemovalSummary(removalResult, { chalk, logFn });
   } catch (error) {
     spinner?.fail('Removal failed');
     throw error;
@@ -829,12 +829,41 @@ async function handleRemoveDryRun(currentConfig, options, dependencies) {
   logFn(`• Configuration file: ${chalk.cyan('.lullabot-project.yml')}`);
 
   if (currentConfig.files && currentConfig.files.length > 0) {
-    logFn(`• Files: ${chalk.red('🗑️')} ${currentConfig.files.length} files`);
-    if (options.verbose) {
-      currentConfig.files.forEach((file) => {
-        const filePath = typeof file === 'string' ? file : file.path;
-        logFn(`  - ${filePath}`);
-      });
+    // Separate files into removed and reverted
+    const removedFiles = [];
+    const revertedFiles = [];
+
+    currentConfig.files.forEach((file) => {
+      const filePath = typeof file === 'string' ? file : file.path;
+      if (filePath === 'AGENTS.md' && file.preExisting === true) {
+        revertedFiles.push(filePath);
+      } else {
+        removedFiles.push(filePath);
+      }
+    });
+
+    if (removedFiles.length > 0) {
+      logFn(`• Files removed: ${chalk.red('🗑️')} ${removedFiles.length} files`);
+      if (options.verbose) {
+        removedFiles.forEach((filePath) => {
+          logFn(`  - ${filePath}`);
+        });
+      }
+    }
+
+    if (revertedFiles.length > 0) {
+      logFn(
+        `• Files reverted: ${chalk.blue('🔄')} ${revertedFiles.length} files`
+      );
+      if (options.verbose) {
+        revertedFiles.forEach((filePath) => {
+          logFn(`  - ${filePath}`);
+        });
+      }
+    }
+
+    if (removedFiles.length === 0 && revertedFiles.length === 0) {
+      logFn(`• Files: ${chalk.gray('🗑️ None')}`);
     }
   } else {
     logFn(`• Files: ${chalk.gray('🗑️ None')}`);
@@ -913,15 +942,19 @@ function removeLullabotCommentSection(content) {
   const LULLABOT_COMMENT_START = '<!-- Lullabot Project Start -->';
   const LULLABOT_COMMENT_END = '<!-- Lullabot Project End -->';
 
+  // Escape special regex characters in the comment markers
+  const escapedStart = LULLABOT_COMMENT_START.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    '\\$&'
+  );
+  const escapedEnd = LULLABOT_COMMENT_END.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    '\\$&'
+  );
+
   // Remove the entire Lullabot comment section
   const cleanedContent = content
-    .replace(
-      new RegExp(
-        `${LULLABOT_COMMENT_START}[\\s\\S]*?${LULLABOT_COMMENT_END}`,
-        'g'
-      ),
-      ''
-    )
+    .replace(new RegExp(`${escapedStart}[\\s\\S]*?${escapedEnd}`, 'g'), '')
     .trim();
 
   return cleanedContent;
@@ -933,6 +966,7 @@ function removeLullabotCommentSection(content) {
 async function performRemoval(currentConfig, options, dependencies) {
   const { fs, path, chalk, logFn } = dependencies;
   const removedFiles = [];
+  const revertedFiles = [];
 
   // Remove configuration file
   if (await fs.pathExists('.lullabot-project.yml')) {
@@ -965,8 +999,14 @@ async function performRemoval(currentConfig, options, dependencies) {
 
       // Special handling for AGENTS.md
       if (filePath === 'AGENTS.md') {
+        const wasPreExisting = fileInfo.preExisting === true;
         await handleAgentsMdRemoval(fileInfo, fullPath, options, dependencies);
-        removedFiles.push(filePath);
+
+        if (wasPreExisting) {
+          revertedFiles.push(filePath);
+        } else {
+          removedFiles.push(filePath);
+        }
         continue;
       }
 
@@ -984,22 +1024,34 @@ async function performRemoval(currentConfig, options, dependencies) {
     }
   }
 
-  return removedFiles;
+  return { removedFiles, revertedFiles };
 }
 
 /**
  * Display removal summary
  */
-function displayRemovalSummary(removedFiles, dependencies) {
+function displayRemovalSummary(removalResult, dependencies) {
   const { chalk, logFn } = dependencies;
+  const { removedFiles, revertedFiles } = removalResult;
 
-  logFn(chalk.green('\n✅ Files removed:'));
-  removedFiles.forEach((file) => {
-    logFn(chalk.green(`  • ${file}`));
-  });
+  // Display removed files
+  if (removedFiles.length > 0) {
+    logFn(chalk.green('\n✅ Files removed:'));
+    removedFiles.forEach((file) => {
+      logFn(chalk.green(`  • ${file}`));
+    });
+  }
 
-  if (removedFiles.length === 0) {
-    logFn(chalk.yellow('  No files were found to remove.'));
+  // Display reverted files
+  if (revertedFiles.length > 0) {
+    logFn(chalk.blue('\n🔄 Files reverted:'));
+    revertedFiles.forEach((file) => {
+      logFn(chalk.blue(`  • ${file}`));
+    });
+  }
+
+  if (removedFiles.length === 0 && revertedFiles.length === 0) {
+    logFn(chalk.yellow('  No files were found to remove or revert.'));
   }
 
   logFn(

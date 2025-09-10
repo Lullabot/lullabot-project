@@ -1,11 +1,4 @@
----
-description: PHPUnit Kernel & Functional test scaffolds.
-globs:
-  - 'tests/src/**/*.php'
-alwaysApply: false
----
-
-# Drupal Testing Rules
+# Drupal Testing Rules
 
 1. **Base classes**
    - Use `KernelTestBase` for unit‑ish tests needing services.

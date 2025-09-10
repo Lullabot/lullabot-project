@@ -1,9 +1,3 @@
----
-description: MAINTAIN consistent brand voice and tone when WRITING CONTENT to ENSURE clear and effective communication
-globs: *.md,*.txt
-alwaysApply: false
----
-
 # Voice and Tone Standards
 
 <version>1.0.0</version>

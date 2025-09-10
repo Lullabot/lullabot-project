@@ -1,12 +1,4 @@
----
-description: Drupal 10 theming & Twig best practices.
-globs:
-  - '**/*.html.twig'
-  - '**/*.theme'
-alwaysApply: false
----
-
-# Drupal Theme Rules
+# Drupal Theme Rules
 
 - Limit Twig logic to simple conditionals/loops; heavy logic goes to `*.theme` preprocess.
 - Follow **BEM** classes (`block__element--modifier`).
