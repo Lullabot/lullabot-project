@@ -507,8 +507,8 @@ async function performUpdate(currentConfig, fullConfig, options, dependencies) {
   // Execute all enabled tasks
   const results = [];
 
-  // Accumulate files from previous tasks for agents-md task
-  const accumulatedFiles = [...(currentConfig.files || [])];
+  // Start with empty file list - update should rebuild from scratch
+  const accumulatedFiles = [];
 
   for (const [taskId, task] of Object.entries(tasks)) {
     if (

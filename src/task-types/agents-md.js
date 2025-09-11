@@ -159,7 +159,7 @@ async function execute(
         source,
         target,
         verbose,
-        ['AGENTS.md'],
+        [], // No items needed since source is already the specific file
         dependencies
       );
 
@@ -243,6 +243,12 @@ async function execute(
 
   // Update the file with dynamic content
   await updateAgentsMdFile(agentsMdPath, aiFiles, linkType);
+
+  // Recalculate hash after the file has been updated with Lullabot comment
+  if (copyResult.files && copyResult.files.length > 0) {
+    const finalHash = await calculateFileHash(agentsMdPath);
+    copyResult.files[0].originalHash = finalHash;
+  }
 
   // Verbose output
   if (verbose) {

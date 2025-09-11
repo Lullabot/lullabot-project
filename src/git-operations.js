@@ -150,6 +150,33 @@ export async function cloneAndCopyFiles(
   }
 
   try {
+    // If useLocalFiles is true, try local files first (skip Git operations entirely)
+    if (dependencies.useLocalFiles) {
+      if (verbose) {
+        console.log(
+          chalk.yellow(`Using local files (--local flag detected)...`)
+        );
+      }
+      try {
+        return await copyFromLocalFiles(
+          sourcePath,
+          targetPath,
+          verbose,
+          items,
+          dependencies
+        );
+      } catch (error) {
+        if (verbose) {
+          console.log(
+            chalk.yellow(
+              `Local files not found, falling back to Git: ${error.message}`
+            )
+          );
+        }
+        // Fall through to Git logic
+      }
+    }
+
     // Clone the repository with shallow clone for efficiency
     // Try to use the version tag first, fallback to main branch if tag doesn't exist
     if (verbose) {
@@ -207,23 +234,8 @@ export async function cloneAndCopyFiles(
     // Path to source directory in the cloned repo
     const fullSourcePath = path.join(tempDir, sourcePath);
 
-    // Check if source exists
+    // Check if source exists in Git
     if (!fs.existsSync(fullSourcePath)) {
-      // Try local fallback for development
-      if (dependencies.useLocalFiles) {
-        if (verbose) {
-          console.log(
-            chalk.yellow(`Source not found in Git, trying local fallback...`)
-          );
-        }
-        return await copyFromLocalFiles(
-          sourcePath,
-          targetPath,
-          verbose,
-          items,
-          dependencies
-        );
-      }
       throw new Error(`Source path ${sourcePath} not found in repository`);
     }
 
@@ -294,8 +306,22 @@ export async function cloneAndCopyFiles(
         }
       }
     } else {
-      // Copy entire directory
-      await fs.copy(fullSourcePath, targetPath);
+      // Check if source is a file or directory
+      const sourceStats = await fs.stat(fullSourcePath);
+      if (sourceStats.isFile()) {
+        // Source is a file - copy it to target directory with the same filename
+        const fileName = path.basename(fullSourcePath);
+        const targetFilePath = path.join(targetPath, fileName);
+        await fs.copy(fullSourcePath, targetFilePath);
+        if (verbose) {
+          console.log(
+            chalk.gray(`Copied file ${fileName} to ${targetFilePath}`)
+          );
+        }
+      } else {
+        // Copy entire directory
+        await fs.copy(fullSourcePath, targetPath);
+      }
     }
 
     if (verbose) {
@@ -336,17 +362,33 @@ export async function cloneAndCopyFiles(
           }
         }
       } else {
-        // Track entire directory contents
-        if (fs.existsSync(targetPath)) {
-          const targetContents = await fs.readdir(targetPath);
-          for (const item of targetContents) {
-            const itemPath = path.join(targetPath, item);
-            const relativePath = path.relative(process.cwd(), itemPath);
+        // Check if we copied a single file or entire directory
+        const sourceStats = await fs.stat(fullSourcePath);
+        if (sourceStats.isFile()) {
+          // Track the single file that was copied
+          const fileName = path.basename(fullSourcePath);
+          const targetFilePath = path.join(targetPath, fileName);
+          if (fs.existsSync(targetFilePath)) {
+            const relativePath = path.relative(process.cwd(), targetFilePath);
             const fileInfo = await dependencies.trackInstalledFile(
               relativePath,
               dependencies
             );
             trackedFiles.push(fileInfo);
+          }
+        } else {
+          // Track entire directory contents
+          if (fs.existsSync(targetPath)) {
+            const targetContents = await fs.readdir(targetPath);
+            for (const item of targetContents) {
+              const itemPath = path.join(targetPath, item);
+              const relativePath = path.relative(process.cwd(), itemPath);
+              const fileInfo = await dependencies.trackInstalledFile(
+                relativePath,
+                dependencies
+              );
+              trackedFiles.push(fileInfo);
+            }
           }
         }
       }
@@ -373,13 +415,25 @@ export async function cloneAndCopyFiles(
           }
         }
       } else {
-        // Track entire directory contents
-        if (fs.existsSync(targetPath)) {
-          const targetContents = await fs.readdir(targetPath);
-          for (const item of targetContents) {
-            const itemPath = path.join(targetPath, item);
-            const relativePath = path.relative(process.cwd(), itemPath);
+        // Check if we copied a single file or entire directory
+        const sourceStats = await fs.stat(fullSourcePath);
+        if (sourceStats.isFile()) {
+          // Track the single file that was copied
+          const fileName = path.basename(fullSourcePath);
+          const targetFilePath = path.join(targetPath, fileName);
+          if (fs.existsSync(targetFilePath)) {
+            const relativePath = path.relative(process.cwd(), targetFilePath);
             trackedFiles.push({ path: relativePath });
+          }
+        } else {
+          // Track entire directory contents
+          if (fs.existsSync(targetPath)) {
+            const targetContents = await fs.readdir(targetPath);
+            for (const item of targetContents) {
+              const itemPath = path.join(targetPath, item);
+              const relativePath = path.relative(process.cwd(), itemPath);
+              trackedFiles.push({ path: relativePath });
+            }
           }
         }
       }

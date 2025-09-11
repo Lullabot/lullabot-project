@@ -18,7 +18,8 @@ const mockFs = {
   existsSync: jest.fn(),
   copy: jest.fn(),
   ensureDir: jest.fn(),
-  readdir: jest.fn()
+  readdir: jest.fn(),
+  stat: jest.fn()
 };
 
 const mockChalk = {
@@ -200,6 +201,7 @@ describe('Git Operations - Targeted Coverage Tests', () => {
       mockFs.copy.mockResolvedValue();
       mockFs.ensureDir.mockResolvedValue();
       mockFs.readdir.mockResolvedValue(['file1.md', 'file2.md']);
+      mockFs.stat.mockResolvedValue({ isFile: () => false, isDirectory: () => true });
 
       const result = await gitOperations.cloneAndCopyFiles(
         'assets/rules/cursor/drupal/',
@@ -219,6 +221,7 @@ describe('Git Operations - Targeted Coverage Tests', () => {
       mockGit.clone.mockResolvedValue();
       mockFs.existsSync.mockReturnValue(true);
       mockFs.copy.mockRejectedValue(new Error('Copy failed'));
+      mockFs.stat.mockResolvedValue({ isFile: () => false, isDirectory: () => true });
 
       await expect(gitOperations.cloneAndCopyFiles(
         'assets/rules/cursor/drupal/',
@@ -251,6 +254,7 @@ describe('Git Operations - Targeted Coverage Tests', () => {
       mockFs.copy.mockResolvedValue();
       mockFs.ensureDir.mockResolvedValue();
       mockFs.readdir.mockResolvedValue(['file1.md', 'file2.md']);
+      mockFs.stat.mockResolvedValue({ isFile: () => false, isDirectory: () => true });
 
       // Mock cleanup to fail but not affect the main operation
       mockFs.remove

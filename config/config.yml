@@ -25,7 +25,7 @@ tools:
         description: "Create claude.md wrapper file"
         type: "copy-files"
         source: "assets/wrappers/"
-        items: ["claude.md"]
+        items: { "claude.md": "CLAUDE.md" }
         target: "."
         required: false
         prompt: "Would you like to create a claude.md wrapper file?"
