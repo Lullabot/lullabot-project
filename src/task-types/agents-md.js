@@ -159,9 +159,33 @@ async function execute(
         source,
         target,
         verbose,
-        ['AGENTS.md'],
+        [], // No items needed since source is already the specific file
         dependencies
       );
+
+      // If cloneAndCopyFiles succeeded but didn't find the file, create it manually
+      if (!copyResult.files || copyResult.files.length === 0) {
+        await fs.writeFile(agentsMdPath, '');
+
+        // Track the file properly using trackInstalledFile if available
+        if (dependencies.trackInstalledFile) {
+          const fileInfo = await dependencies.trackInstalledFile(
+            'AGENTS.md',
+            dependencies
+          );
+          copyResult = { files: [fileInfo] };
+        } else {
+          // Fallback to manual tracking
+          copyResult = {
+            files: [
+              {
+                path: 'AGENTS.md',
+                originalHash: await calculateFileHash(agentsMdPath)
+              }
+            ]
+          };
+        }
+      }
     } catch (error) {
       // If the source file doesn't exist in Git (e.g., during testing), create an empty file
       if (error.message.includes('not found in repository')) {
@@ -219,6 +243,12 @@ async function execute(
 
   // Update the file with dynamic content
   await updateAgentsMdFile(agentsMdPath, aiFiles, linkType);
+
+  // Recalculate hash after the file has been updated with Lullabot comment
+  if (copyResult.files && copyResult.files.length > 0) {
+    const finalHash = await calculateFileHash(agentsMdPath);
+    copyResult.files[0].originalHash = finalHash;
+  }
 
   // Verbose output
   if (verbose) {
