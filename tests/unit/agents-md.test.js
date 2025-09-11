@@ -51,8 +51,7 @@ describe('Agents MD Task Type', () => {
       const content = await fs.readFile(agentsMdPath, 'utf8');
       expect(content).toContain('<!-- Lullabot Project Start -->');
       expect(content).toContain('<!-- Lullabot Project End -->');
-      expect(content).toContain('# AI Development Instructions');
-      expect(content).toContain('This project uses standardized AI development instructions');
+      expect(content).toContain('# Example AGENTS.md File');
     });
 
     it('should create AGENTS.md with file references when .ai/ files exist', async () => {
