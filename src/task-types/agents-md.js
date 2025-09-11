@@ -162,6 +162,30 @@ async function execute(
         ['AGENTS.md'],
         dependencies
       );
+
+      // If cloneAndCopyFiles succeeded but didn't find the file, create it manually
+      if (!copyResult.files || copyResult.files.length === 0) {
+        await fs.writeFile(agentsMdPath, '');
+
+        // Track the file properly using trackInstalledFile if available
+        if (dependencies.trackInstalledFile) {
+          const fileInfo = await dependencies.trackInstalledFile(
+            'AGENTS.md',
+            dependencies
+          );
+          copyResult = { files: [fileInfo] };
+        } else {
+          // Fallback to manual tracking
+          copyResult = {
+            files: [
+              {
+                path: 'AGENTS.md',
+                originalHash: await calculateFileHash(agentsMdPath)
+              }
+            ]
+          };
+        }
+      }
     } catch (error) {
       // If the source file doesn't exist in Git (e.g., during testing), create an empty file
       if (error.message.includes('not found in repository')) {

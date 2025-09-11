@@ -304,10 +304,10 @@ export async function cloneAndCopyFiles(
       );
     }
 
-    // If dependencies are provided, track the copied files
-    if (dependencies.trackInstalledFile) {
-      const trackedFiles = [];
+    // Track the copied files
+    const trackedFiles = [];
 
+    if (dependencies.trackInstalledFile) {
       // Track files based on what was copied
       if (items && Array.isArray(items) && items.length > 0) {
         // Track specific items (array syntax)
@@ -352,9 +352,40 @@ export async function cloneAndCopyFiles(
       }
 
       return { files: trackedFiles };
+    } else {
+      // Fallback: track files without trackInstalledFile
+      if (items && Array.isArray(items) && items.length > 0) {
+        // Track specific items (array syntax)
+        for (const item of items) {
+          const targetItemPath = path.join(targetPath, item);
+          if (fs.existsSync(targetItemPath)) {
+            const relativePath = path.relative(process.cwd(), targetItemPath);
+            trackedFiles.push({ path: relativePath });
+          }
+        }
+      } else if (items && typeof items === 'object' && !Array.isArray(items)) {
+        // Track renamed items (object syntax)
+        for (const [, targetItem] of Object.entries(items)) {
+          const targetItemPath = path.join(targetPath, targetItem);
+          if (fs.existsSync(targetItemPath)) {
+            const relativePath = path.relative(process.cwd(), targetItemPath);
+            trackedFiles.push({ path: relativePath });
+          }
+        }
+      } else {
+        // Track entire directory contents
+        if (fs.existsSync(targetPath)) {
+          const targetContents = await fs.readdir(targetPath);
+          for (const item of targetContents) {
+            const itemPath = path.join(targetPath, item);
+            const relativePath = path.relative(process.cwd(), itemPath);
+            trackedFiles.push({ path: relativePath });
+          }
+        }
+      }
     }
 
-    return true;
+    return { files: trackedFiles };
   } catch (error) {
     if (verbose) {
       console.log(chalk.red(`Git operation failed: ${error.message}`));

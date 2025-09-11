@@ -17,7 +17,8 @@ const mockFs = {
   remove: jest.fn(),
   existsSync: jest.fn(),
   copy: jest.fn(),
-  ensureDir: jest.fn()
+  ensureDir: jest.fn(),
+  readdir: jest.fn()
 };
 
 const mockChalk = {
@@ -198,6 +199,7 @@ describe('Git Operations - Targeted Coverage Tests', () => {
       mockFs.existsSync.mockReturnValue(true);
       mockFs.copy.mockResolvedValue();
       mockFs.ensureDir.mockResolvedValue();
+      mockFs.readdir.mockResolvedValue(['file1.md', 'file2.md']);
 
       const result = await gitOperations.cloneAndCopyFiles(
         'assets/rules/cursor/drupal/',
@@ -205,7 +207,7 @@ describe('Git Operations - Targeted Coverage Tests', () => {
         true
       );
 
-      expect(result).toBe(true);
+      expect(result).toEqual({ files: [{ path: '.cursor/rules/file1.md' }, { path: '.cursor/rules/file2.md' }] });
       expect(mockGit.clone).toHaveBeenCalledTimes(2);
       expect(mockFs.remove).toHaveBeenCalledWith('/tmp/lullabot-project-123456789');
     });
@@ -248,6 +250,7 @@ describe('Git Operations - Targeted Coverage Tests', () => {
       mockFs.existsSync.mockReturnValue(true);
       mockFs.copy.mockResolvedValue();
       mockFs.ensureDir.mockResolvedValue();
+      mockFs.readdir.mockResolvedValue(['file1.md', 'file2.md']);
 
       // Mock cleanup to fail but not affect the main operation
       mockFs.remove
@@ -261,7 +264,7 @@ describe('Git Operations - Targeted Coverage Tests', () => {
         false
       );
 
-      expect(result).toBe(true);
+      expect(result).toEqual({ files: [{ path: '.cursor/rules/file1.md' }, { path: '.cursor/rules/file2.md' }] });
     });
   });
 
