@@ -153,7 +153,7 @@ describe('File Operations Module - Comprehensive', () => {
       };
 
       try {
-        const result = await fileOperations.executeTask(task, 'cursor', 'drupal', true);
+        const result = await fileOperations.executeTask(task, 'cursor', 'development', true);
 
         expect(Array.isArray(result)).toBe(true);
         expect(result.length).toBeGreaterThan(0);
@@ -174,7 +174,7 @@ describe('File Operations Module - Comprehensive', () => {
         }
       };
 
-      const result = await fileOperations.executeTask(task, 'cursor', 'drupal', true);
+      const result = await fileOperations.executeTask(task, 'cursor', 'development', true);
 
       expect(result).toBeDefined();
       expect(result.output).toBeDefined();
@@ -190,7 +190,7 @@ describe('File Operations Module - Comprehensive', () => {
       };
 
       await expect(
-        fileOperations.executeTask(task, 'cursor', 'drupal', true)
+        fileOperations.executeTask(task, 'cursor', 'development', true)
       ).rejects.toThrow('Unknown task type: command');
     });
 
@@ -202,7 +202,7 @@ describe('File Operations Module - Comprehensive', () => {
       };
 
       await expect(
-        fileOperations.executeTask(task, 'cursor', 'drupal')
+        fileOperations.executeTask(task, 'cursor', 'development')
       ).rejects.toThrow('Unknown task type: unknown-type');
     });
 
@@ -216,7 +216,7 @@ describe('File Operations Module - Comprehensive', () => {
       };
 
       await expect(
-        fileOperations.executeTask(task, 'cursor', 'drupal')
+        fileOperations.executeTask(task, 'cursor', 'development')
       ).rejects.toThrow("Task 'test-error' failed");
     });
   });
@@ -232,12 +232,12 @@ describe('File Operations Module - Comprehensive', () => {
         id: 'test-copy-git',
         name: 'Test Copy Git',
         type: 'copy-files',
-        source: 'assets/rules',
+        source: 'assets/wrappers',
         target: path.relative(testDir, targetDir)
       };
 
       process.chdir(testDir);
-      const result = await fileOperations.executeTask(task, 'cursor', 'drupal', true);
+      const result = await fileOperations.executeTask(task, 'cursor', 'development', true);
 
       expect(Array.isArray(result)).toBe(true);
     });
@@ -255,7 +255,7 @@ describe('File Operations Module - Comprehensive', () => {
         }
       };
 
-      const result = await fileOperations.executeTask(task, 'cursor', 'drupal', true);
+      const result = await fileOperations.executeTask(task, 'cursor', 'development', true);
 
       expect(result).toBeDefined();
       expect(result.output).toBeDefined();
@@ -273,7 +273,7 @@ describe('File Operations Module - Comprehensive', () => {
       };
 
       await expect(
-        fileOperations.executeTask(task, 'cursor', 'drupal', true)
+        fileOperations.executeTask(task, 'cursor', 'development', true)
       ).rejects.toThrow('Unknown task type: command');
     });
   });
@@ -374,7 +374,7 @@ describe('File Operations Module - Comprehensive', () => {
     it('should update existing configuration file', async () => {
       // Create initial config
       const initialConfig = {
-        project: { type: 'drupal', tool: 'cursor' },
+        project: { type: 'development', tool: 'cursor' },
         installation: { created: '2024-01-01T00:00:00.000Z' }
       };
 
@@ -383,7 +383,7 @@ describe('File Operations Module - Comprehensive', () => {
 
       // Update config
       const updateData = {
-        project: { type: 'drupal', tool: 'claude' },
+        project: { type: 'development', tool: 'claude' },
         features: { newFeature: true }
       };
 
@@ -402,7 +402,7 @@ describe('File Operations Module - Comprehensive', () => {
       process.chdir(testDir);
 
       await expect(
-        fileOperations.updateConfigFile({ project: { type: 'drupal' } })
+        fileOperations.updateConfigFile({ project: { type: 'development' } })
       ).rejects.toThrow('No existing configuration found');
     });
   });
@@ -410,7 +410,7 @@ describe('File Operations Module - Comprehensive', () => {
   describe('configExists', () => {
     it('should return true when config file exists', async () => {
       const config = {
-        project: { type: 'drupal', tool: 'cursor' }
+        project: { type: 'development', tool: 'cursor' }
       };
 
       process.chdir(testDir);
@@ -438,7 +438,7 @@ describe('File Operations Module - Comprehensive', () => {
 
     it('should return files from existing config', async () => {
       const config = {
-        project: { type: 'drupal', tool: 'cursor' },
+        project: { type: 'development', tool: 'cursor' },
         files: ['file1.txt', 'file2.txt']
       };
 
