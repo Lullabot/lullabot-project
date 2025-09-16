@@ -53,7 +53,7 @@ describe('Tool Config Module - Expanded', () => {
       expect(result.projects).toBeDefined();
       expect(result.tools.cursor).toBeDefined();
       expect(result.tools.claude).toBeDefined();
-      expect(result.projects.drupal).toBeDefined();
+      expect(result.projects.development).toBeDefined();
     });
 
     it('should load tool configuration successfully', async () => {

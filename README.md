@@ -23,6 +23,37 @@ A CLI tool that helps developers set up their development environment with AI to
 - **Extensible**: Easy to add new tools and project types
 - **Comprehensive Testing**: Robust test suite with excellent coverage
 
+## Prompt Library Integration
+
+The tool now integrates with the [Lullabot Prompt Library](https://github.com/Lullabot/prompt_library) to provide centralized, up-to-date project rules and guidelines.
+
+### How It Works
+
+- **Centralized Rules**: Project rules are pulled from the public Lullabot Prompt Library repository
+- **Automatic Updates**: Rules are always up-to-date with the latest versions from the repository
+- **Project Type Mapping**: Rules are organized by discipline (development, content-strategy, design, etc.)
+- **Smart Filtering**: Only `.md` files are copied by default, with support for selective file copying
+- **Efficient Operations**: Shallow cloning and caching for fast, reliable operations
+
+### Supported Project Types
+
+The tool supports the following project types that correspond to disciplines in the prompt library:
+
+- **development** - Development discipline (formerly "drupal")
+- **content-strategy** - Content Strategy discipline
+- **design** - Design discipline
+- **project-management** - Project Management discipline
+- **quality-assurance** - Quality Assurance discipline (formerly "qa")
+- **sales-marketing** - Sales and Marketing discipline
+
+### Remote Repository Features
+
+- **Branch and Tag Support**: Pull from specific branches or tags
+- **Shallow Cloning**: Only download the latest commit for efficiency
+- **Clone Caching**: Reuse cloned repositories for multiple tasks
+- **Error Handling**: Comprehensive error handling for network issues and missing files
+- **File Renaming**: Support for renaming files during copy operations
+
 ## AGENTS.md Standardization
 
 The tool now supports the **AGENTS.md Standard** - a unified approach to AI development instructions across all supported tools.
@@ -124,7 +155,7 @@ npx lullabot-project init
 lullabot-project init
 
 # Quick setup with options
-lullabot-project init -i cursor -p drupal --all-tasks
+lullabot-project init -i cursor -p development --all-tasks
 ```
 
 ### AGENTS.md Usage
@@ -133,10 +164,10 @@ The tool automatically sets up AGENTS.md standardization when you select tools t
 
 ```bash
 # Set up Cursor with AGENTS.md
-lullabot-project init -t cursor -p drupal
+lullabot-project init -t cursor -p development
 
-# Set up multiple tools with AGENTS.md
-lullabot-project init -t cursor,claude,windsurf -p drupal
+# Set up Claude with AGENTS.md
+lullabot-project init -t claude -p development
 ```
 
 This will:
@@ -231,8 +262,8 @@ lullabot-project init [options]
 ```
 
 **Options:**
-- `-t, --tool <tool>` - Specify tool (cursor, windsurf, vscode)
-- `-p, --project <type>` - Specify project type (drupal, none)
+- `-t, --tool <tool>` - Specify a single tool (cursor, claude, gemini, github-copilot, windsurf)
+- `-p, --project <type>` - Specify project type (development, quality-assurance, none)
 - `--skip-tasks <tasks>` - Skip specific tasks (comma-separated)
 - `--tasks <tasks>` - Execute only specific tasks (comma-separated)
 - `--all-tasks` - Execute all available tasks
@@ -247,34 +278,34 @@ lullabot-project init [options]
 lullabot-project init
 
 # Quick setup for Cursor + Drupal
-lullabot-project init -t cursor -p drupal
+lullabot-project init -t cursor -p development
 
 # Setup with all features (default)
-lullabot-project init -t cursor -p drupal --all-tasks
+lullabot-project init -t cursor -p development --all-tasks
 
 # Setup without memory bank
-lullabot-project init -t cursor -p drupal --skip-tasks memory-bank
+lullabot-project init -t cursor -p development --skip-tasks memory-bank
 
 # Setup without rules
-lullabot-project init -t cursor -p drupal --skip-tasks rules
+lullabot-project init -t cursor -p development --skip-tasks rules
 
 # Setup without both features
-lullabot-project init -t cursor -p drupal --skip-tasks memory-bank,rules
+lullabot-project init -t cursor -p development --skip-tasks memory-bank,rules
 
 # Setup without project-specific rules (tool-only)
 lullabot-project init -t cursor -p none
 
 # Execute only specific tasks
-lullabot-project init -t cursor -p drupal --tasks memory-bank
+lullabot-project init -t cursor -p development --tasks memory-bank
 
 # Execute all available tasks
-lullabot-project init -t cursor -p drupal --all-tasks
+lullabot-project init -t cursor -p development --all-tasks
 
 # Verbose setup with validation
-lullabot-project init -t cursor -p drupal -v
+lullabot-project init -t cursor -p development -v
 
 # Local development mode (uses local files instead of Git)
-lullabot-project init -t cursor -p drupal --local
+lullabot-project init -t cursor -p development --local
 ```
 
 #### `update` - Update Existing Setup
@@ -286,8 +317,8 @@ lullabot-project update [options]
 ```
 
 **Options:**
-- `-t, --tool <tool>` - Override stored tool setting (optional)
-- `-p, --project <type>` - Override stored project type (drupal, none, optional)
+- `-t, --tool <tool>` - Override stored tool setting with a single tool (optional)
+- `-p, --project <type>` - Override stored project type (development, quality-assurance, none, optional)
 - `--skip-tasks <tasks>` - Skip specific tasks (comma-separated)
 - `--tasks <tasks>` - Execute only specific tasks (comma-separated)
 - `--all-tasks` - Execute all available tasks
@@ -314,7 +345,7 @@ lullabot-project update --skip-tasks memory-bank
 lullabot-project update --skip-tasks rules
 
 # Update with overrides and verbose
-lullabot-project update -t cursor -p drupal --skip-tasks rules -v
+lullabot-project update -t cursor -p development --skip-tasks rules -v
 
 # Force update if configuration is corrupted
 lullabot-project update --force
@@ -552,6 +583,44 @@ agents-md:
   required: false
   prompt: "Would you like to set up AGENTS.md with project-specific rules?"
 ```
+
+#### `remote-copy-files` - Copy Files from Remote Repository
+
+Copy files from a remote Git repository (used for prompt library integration):
+
+```yaml
+rules:
+  name: "Project Rules from Prompt Library"
+  type: "remote-copy-files"
+  repository:
+    url: "https://github.com/Lullabot/prompt_library"
+    type: "branch"
+    target: "main"
+  source: "{project-type}/rules/"
+  target: ".ai/rules"
+  required: false
+  prompt: "Would you like to install project-specific rules from the prompt library?"
+```
+
+**Configuration:**
+- `repository`: Repository configuration object
+  - `url`: Repository URL
+  - `type`: Target type (`branch` or `tag`)
+  - `target`: Branch or tag name
+- `source`: Source path within repository with placeholders (`{project-type}`)
+- `target`: Target directory for copied files
+- `items`: Optional array of specific files to copy, or object for renaming
+- `required`: Whether the task is required
+- `prompt`: User prompt for the task
+
+**Features:**
+- **Smart Filtering**: If `items` specified, copy exact files; otherwise copy only `.md` files
+- **Shallow Cloning**: Only download latest commit for efficiency
+- **Clone Caching**: Reuse cloned repositories for multiple tasks
+- **Error Handling**: Comprehensive error handling for network issues and missing files
+- **File Renaming**: Support for renaming files during copy operations
+
+**Note**: The `--local` flag does not affect `remote-copy-files` tasks, which always pull from remote repositories.
 
 **Configuration:**
 - `source`: Template file for AGENTS.md
@@ -845,7 +914,7 @@ lullabot-project update --dry-run
 lullabot-project remove --dry-run
 
 # Combine with other options
-lullabot-project init -i cursor -p drupal --skip-tasks memory-bank --dry-run
+lullabot-project init -i cursor -p development --skip-tasks memory-bank --dry-run
 lullabot-project update --force --dry-run
 ```
 
@@ -863,7 +932,7 @@ The tool supports a `--local` flag for development and testing purposes. This mo
 
 ```bash
 # Use local files instead of Git repository
-lullabot-project init --local -t cursor -p drupal
+lullabot-project init --local -t cursor -p development
 lullabot-project update --local
 ```
 
@@ -872,6 +941,7 @@ lullabot-project update --local
 - No network access required
 - Useful for testing new files before they're committed and tagged
 - Falls back to Git if local files are not found
+- **Note**: The `--local` flag only works with `copy-files` tasks. It does not affect `remote-copy-files` tasks, which always pull from remote repositories
 
 ### Development Workflow
 
@@ -986,10 +1056,10 @@ Our testing strategy targets:
 
 ```bash
 # Test the tool locally
-npm start init -i cursor -p drupal -v
+npm start init -i cursor -p development -v
 
 # Test with dry run
-npm start init -i cursor -p drupal --skip-tasks memory-bank --dry-run
+npm start init -i cursor -p development --skip-tasks memory-bank --dry-run
 
 # Test update command
 npm start update -v
@@ -1013,7 +1083,7 @@ The tool automatically ensures version consistency by using Git tags that match 
 
 ```bash
 # Tool version 1.0.0 will attempt to clone from tag 1.0.0
-lullabot-project init -t cursor -p drupal -v
+lullabot-project init -t cursor -p development -v
 
 # Output shows:
 # Attempting to clone from https://github.com/Lullabot/lullabot-project tag 1.0.0
