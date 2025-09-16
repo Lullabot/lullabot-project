@@ -166,8 +166,8 @@ The tool automatically sets up AGENTS.md standardization when you select tools t
 # Set up Cursor with AGENTS.md
 lullabot-project init -t cursor -p development
 
-# Set up multiple tools with AGENTS.md
-lullabot-project init -t cursor,claude,windsurf -p development
+# Set up Claude with AGENTS.md
+lullabot-project init -t claude -p development
 ```
 
 This will:
@@ -262,8 +262,8 @@ lullabot-project init [options]
 ```
 
 **Options:**
-- `-t, --tool <tool>` - Specify tool (cursor, windsurf, vscode)
-- `-p, --project <type>` - Specify project type (drupal, none)
+- `-t, --tool <tool>` - Specify a single tool (cursor, claude, gemini, github-copilot, windsurf)
+- `-p, --project <type>` - Specify project type (development, quality-assurance, none)
 - `--skip-tasks <tasks>` - Skip specific tasks (comma-separated)
 - `--tasks <tasks>` - Execute only specific tasks (comma-separated)
 - `--all-tasks` - Execute all available tasks
@@ -317,8 +317,8 @@ lullabot-project update [options]
 ```
 
 **Options:**
-- `-t, --tool <tool>` - Override stored tool setting (optional)
-- `-p, --project <type>` - Override stored project type (drupal, none, optional)
+- `-t, --tool <tool>` - Override stored tool setting with a single tool (optional)
+- `-p, --project <type>` - Override stored project type (development, quality-assurance, none, optional)
 - `--skip-tasks <tasks>` - Skip specific tasks (comma-separated)
 - `--tasks <tasks>` - Execute only specific tasks (comma-separated)
 - `--all-tasks` - Execute all available tasks
