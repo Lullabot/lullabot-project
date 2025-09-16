@@ -4,6 +4,10 @@ import path from 'path';
 import os from 'os';
 import chalk from 'chalk';
 import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 const git = simpleGit();
 
@@ -377,17 +381,28 @@ export async function cloneAndCopyFiles(
             trackedFiles.push(fileInfo);
           }
         } else {
-          // Track entire directory contents
-          if (fs.existsSync(targetPath)) {
-            const targetContents = await fs.readdir(targetPath);
-            for (const item of targetContents) {
-              const itemPath = path.join(targetPath, item);
-              const relativePath = path.relative(process.cwd(), itemPath);
-              const fileInfo = await dependencies.trackInstalledFile(
-                relativePath,
-                dependencies
-              );
-              trackedFiles.push(fileInfo);
+          // Track only the files that were actually copied from the source directory
+          if (fs.existsSync(fullSourcePath)) {
+            const sourceContents = await fs.readdir(fullSourcePath);
+            for (const item of sourceContents) {
+              const sourceItemPath = path.join(fullSourcePath, item);
+              const targetItemPath = path.join(targetPath, item);
+
+              // Only track if the file exists in both source and target (was actually copied)
+              if (
+                fs.existsSync(sourceItemPath) &&
+                fs.existsSync(targetItemPath)
+              ) {
+                const relativePath = path.relative(
+                  process.cwd(),
+                  targetItemPath
+                );
+                const fileInfo = await dependencies.trackInstalledFile(
+                  relativePath,
+                  dependencies
+                );
+                trackedFiles.push(fileInfo);
+              }
             }
           }
         }
@@ -426,13 +441,24 @@ export async function cloneAndCopyFiles(
             trackedFiles.push({ path: relativePath });
           }
         } else {
-          // Track entire directory contents
-          if (fs.existsSync(targetPath)) {
-            const targetContents = await fs.readdir(targetPath);
-            for (const item of targetContents) {
-              const itemPath = path.join(targetPath, item);
-              const relativePath = path.relative(process.cwd(), itemPath);
-              trackedFiles.push({ path: relativePath });
+          // Track only the files that were actually copied from the source directory
+          if (fs.existsSync(fullSourcePath)) {
+            const sourceContents = await fs.readdir(fullSourcePath);
+            for (const item of sourceContents) {
+              const sourceItemPath = path.join(fullSourcePath, item);
+              const targetItemPath = path.join(targetPath, item);
+
+              // Only track if the file exists in both source and target (was actually copied)
+              if (
+                fs.existsSync(sourceItemPath) &&
+                fs.existsSync(targetItemPath)
+              ) {
+                const relativePath = path.relative(
+                  process.cwd(),
+                  targetItemPath
+                );
+                trackedFiles.push({ path: relativePath });
+              }
             }
           }
         }
@@ -657,46 +683,38 @@ async function copyFromLocalFiles(
         }
       }
     } else {
-      // Copy entire directory
-      try {
-        // Remove target directory if it exists to avoid conflicts
-        if (fs.existsSync(targetPath)) {
-          if (verbose) {
-            console.log(
-              chalk.gray(`  Removing existing target directory: ${targetPath}`)
-            );
-          }
-          await fs.remove(targetPath);
-        }
+      // Copy entire directory - preserve pre-existing files
+      await fs.ensureDir(targetPath);
 
-        await fs.copy(localSourcePath, targetPath);
+      // Get list of files in source directory
+      const sourceContents = await fs.readdir(localSourcePath);
 
-        // Track all copied files
-        const targetContents = await fs.readdir(targetPath);
-        for (const item of targetContents) {
-          const itemPath = path.join(targetPath, item);
-          const relativePath = path.relative(process.cwd(), itemPath);
-          if (dependencies.trackInstalledFile) {
-            const fileInfo = await dependencies.trackInstalledFile(
-              relativePath,
-              dependencies
-            );
-            trackedFiles.push(fileInfo);
-          } else {
-            trackedFiles.push({ path: relativePath });
-          }
-        }
+      for (const item of sourceContents) {
+        const sourceItem = path.join(localSourcePath, item);
+        const targetItem = path.join(targetPath, item);
 
-        if (verbose) {
-          console.log(chalk.gray(`  Copied entire directory: ${sourcePath}`));
-        }
-      } catch (copyError) {
-        if (verbose) {
-          console.log(
-            chalk.red(`  Error copying directory: ${copyError.message}`)
+        // Copy the file
+        await fs.copy(sourceItem, targetItem);
+
+        // Track only the files that were actually copied from source
+        const relativePath = path.relative(process.cwd(), targetItem);
+        if (dependencies.trackInstalledFile) {
+          const fileInfo = await dependencies.trackInstalledFile(
+            relativePath,
+            dependencies
           );
+          trackedFiles.push(fileInfo);
+        } else {
+          trackedFiles.push({ path: relativePath });
         }
-        throw new Error(`Failed to copy directory: ${copyError.message}`);
+
+        if (verbose) {
+          console.log(chalk.gray(`  Copied: ${item}`));
+        }
+      }
+
+      if (verbose) {
+        console.log(chalk.gray(`  Copied entire directory: ${sourcePath}`));
       }
     }
   }
@@ -721,3 +739,224 @@ export async function getConfigFromGit(targetDir, verbose = false) {
 
   return await cloneAndCopyFiles(sourcePath, targetPath, verbose);
 }
+
+// ============================================================================
+// Remote Repository Functions for Prompt Library Integration
+// ============================================================================
+
+/**
+ * Clone a remote repository to a temporary directory.
+ *
+ * @param {Object} repository - Repository configuration object
+ * @param {string} repository.url - Repository URL
+ * @param {string} repository.type - Type of target ('branch' or 'tag')
+ * @param {string} repository.target - Target branch or tag name
+ * @param {boolean} verbose - Whether to show detailed output
+ * @returns {Promise<string>} Path to the temporary directory
+ */
+async function cloneRemoteRepository(repository, verbose) {
+  const { url, target } = repository;
+
+  // Create temporary directory
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lullabot-'));
+
+  try {
+    // Shallow clone for efficiency
+    const cloneCommand = `git clone --depth 1 --branch ${target} ${url} .`;
+    await execAsync(cloneCommand, { cwd: tempDir, timeout: 30000 });
+
+    if (verbose) {
+      console.log(
+        chalk.green(`✅ Successfully cloned repository to ${tempDir}`)
+      );
+    }
+
+    return tempDir;
+  } catch (error) {
+    // Clean up temp directory on failure
+    await fs.remove(tempDir).catch(() => {});
+
+    if (error.code === 'ENOTFOUND') {
+      throw new Error(`Repository not found: ${url}`);
+    } else if (error.message.includes('not found')) {
+      throw new Error(`Branch/tag '${target}' not found in repository: ${url}`);
+    } else if (error.code === 'ETIMEDOUT') {
+      throw new Error(`Timeout while cloning repository: ${url}`);
+    } else {
+      throw new Error(`Failed to clone repository: ${error.message}`);
+    }
+  }
+}
+
+// Clone caching for multiple tasks
+const cloneCache = new Map();
+
+/**
+ * Get or clone a repository with caching support.
+ *
+ * @param {Object} repository - Repository configuration object
+ * @param {boolean} verbose - Whether to show detailed output
+ * @returns {Promise<string>} Path to the temporary directory
+ */
+async function getOrCloneRepository(repository, verbose) {
+  const cacheKey = `${repository.url}:${repository.type}:${repository.target}`;
+
+  if (cloneCache.has(cacheKey)) {
+    return cloneCache.get(cacheKey);
+  }
+
+  const tempDir = await cloneRemoteRepository(repository, verbose);
+  cloneCache.set(cacheKey, tempDir);
+  return tempDir;
+}
+
+/**
+ * Clean up all cloned repositories.
+ */
+async function cleanupAllClones() {
+  for (const tempDir of cloneCache.values()) {
+    await fs.remove(tempDir);
+  }
+  cloneCache.clear();
+}
+
+/**
+ * Validate that a repository is accessible.
+ *
+ * @param {Object} repository - Repository configuration object
+ * @param {boolean} verbose - Whether to show detailed output
+ * @returns {Promise<boolean>} True if repository is accessible
+ */
+async function validateRepository(repository, verbose) {
+  try {
+    // Test if repository is accessible
+    await execAsync(`git ls-remote --heads ${repository.url}`, {
+      timeout: 10000
+    });
+
+    if (verbose) {
+      console.log(
+        chalk.green(`✅ Repository validation successful: ${repository.url}`)
+      );
+    }
+    return true;
+  } catch (error) {
+    if (verbose) {
+      console.log(chalk.red(`Repository validation failed: ${error.message}`));
+    }
+
+    if (error.code === 'ENOTFOUND') {
+      throw new Error(`Repository not found: ${repository.url}`);
+    } else if (error.code === 'ETIMEDOUT') {
+      throw new Error(`Timeout while validating repository: ${repository.url}`);
+    } else {
+      throw new Error(
+        `Cannot access repository: ${repository.url} - ${error.message}`
+      );
+    }
+  }
+}
+
+/**
+ * Copy files from a remote repository with smart filtering.
+ *
+ * @param {string} tempDir - Temporary directory containing cloned repository
+ * @param {string} sourcePath - Source path within the repository
+ * @param {string} targetPath - Target path for copied files
+ * @param {boolean} verbose - Whether to show detailed output
+ * @param {Object} dependencies - Injected dependencies for file tracking
+ * @param {Array|Object} items - Optional array of specific items to copy or object for renaming
+ * @returns {Promise<Object[]>} Array of file tracking objects
+ */
+async function copyFilesFromRemote(
+  tempDir,
+  sourcePath,
+  targetPath,
+  verbose,
+  dependencies,
+  items = null
+) {
+  const fullSourcePath = path.join(tempDir, sourcePath);
+
+  // Validate source path exists
+  try {
+    await fs.access(fullSourcePath);
+  } catch (_error) {
+    throw new Error(`Source path not found in repository: ${sourcePath}`);
+  }
+
+  // Smart filtering logic
+  let filesToCopy = [];
+  if (items && (Array.isArray(items) || Object.keys(items).length > 0)) {
+    // Items specified - copy exact files regardless of extension
+    filesToCopy = Array.isArray(items) ? items : Object.keys(items);
+  } else {
+    // No items - copy only .md files
+    const allFiles = await fs.readdir(fullSourcePath);
+    filesToCopy = allFiles.filter((file) => file.endsWith('.md'));
+  }
+
+  // Handle items as array or object for renaming
+  const renameMap = Array.isArray(items) ? {} : items || {};
+
+  const trackedFiles = [];
+  let targetDirCreated = false;
+
+  for (const fileName of filesToCopy) {
+    const sourceItem = path.join(fullSourcePath, fileName);
+    const targetFileName = renameMap[fileName] || fileName;
+    const targetItem = path.join(targetPath, targetFileName);
+
+    // Check if source file exists
+    try {
+      await fs.access(sourceItem);
+    } catch (_error) {
+      if (verbose) {
+        console.log(
+          chalk.yellow(`Warning: ${fileName} not found in ${sourcePath}`)
+        );
+      }
+      continue;
+    }
+
+    // Create target directory only when we actually have a file to copy
+    if (!targetDirCreated) {
+      await fs.ensureDir(targetPath);
+      targetDirCreated = true;
+    }
+
+    // Copy the file with preserved permissions
+    await fs.copy(sourceItem, targetItem, { preserveTimestamps: true });
+
+    // Track the file
+    const relativePath = path.relative(process.cwd(), targetItem);
+    if (dependencies.trackInstalledFile) {
+      const fileInfo = await dependencies.trackInstalledFile(
+        relativePath,
+        dependencies
+      );
+      trackedFiles.push(fileInfo);
+    } else {
+      trackedFiles.push({ path: relativePath });
+    }
+  }
+
+  // Fail gracefully if no files were copied
+  if (trackedFiles.length === 0) {
+    if (verbose) {
+      console.log(
+        chalk.yellow('No files were copied from the remote repository')
+      );
+    }
+  }
+
+  return trackedFiles;
+}
+
+// Export the new functions
+export {
+  getOrCloneRepository,
+  copyFilesFromRemote,
+  validateRepository,
+  cleanupAllClones
+};

@@ -3,14 +3,18 @@ tools:
     name: "Claude Code"
     tasks:
       rules:
-        name: "Project Rules"
-        description: "Copy project-specific files to .ai/"
-        type: "copy-files"
-        source: "assets/rules/{project-type}/"
+        name: "Project Rules from Prompt Library"
+        description: "Copy project-specific rules from Lullabot prompt library"
+        type: "remote-copy-files"
+        repository:
+          url: "https://github.com/Lullabot/prompt_library"
+          type: "branch"
+          target: "main"
+        source: "{project-type}/rules/"
         target: ".ai/rules"
         required: false
         requires-project: true
-        prompt: "Would you like to install project-specific files and guidelines?"
+        prompt: "Would you like to install project-specific rules from the prompt library?"
       agents-md:
         name: "AGENTS.md"
         description: "Create/update AGENTS.md with project-specific rules"
@@ -44,14 +48,18 @@ tools:
         required: false
         prompt: "Would you like to set up a memory bank for AI assistance?"
       rules:
-        name: "Project Rules"
-        description: "Copy project-specific files to .ai/"
-        type: "copy-files"
-        source: "assets/rules/{project-type}/"
+        name: "Project Rules from Prompt Library"
+        description: "Copy project-specific rules from Lullabot prompt library"
+        type: "remote-copy-files"
+        repository:
+          url: "https://github.com/Lullabot/prompt_library"
+          type: "branch"
+          target: "main"
+        source: "{project-type}/rules/"
         target: ".ai/rules"
         required: false
         requires-project: true
-        prompt: "Would you like to install project-specific files and guidelines?"
+        prompt: "Would you like to install project-specific rules from the prompt library?"
       agents-md:
         name: "AGENTS.md"
         description: "Create/update AGENTS.md with project-specific rules"
@@ -86,14 +94,18 @@ tools:
     name: "Gemini"
     tasks:
       rules:
-        name: "Project Rules"
-        description: "Copy project-specific files to .ai/"
-        type: "copy-files"
-        source: "assets/rules/{project-type}/"
+        name: "Project Rules from Prompt Library"
+        description: "Copy project-specific rules from Lullabot prompt library"
+        type: "remote-copy-files"
+        repository:
+          url: "https://github.com/Lullabot/prompt_library"
+          type: "branch"
+          target: "main"
+        source: "{project-type}/rules/"
         target: ".ai/rules"
         required: false
         requires-project: true
-        prompt: "Would you like to install project-specific files and guidelines?"
+        prompt: "Would you like to install project-specific rules from the prompt library?"
       agents-md:
         name: "AGENTS.md"
         description: "Create/update AGENTS.md with project-specific rules"
@@ -116,14 +128,18 @@ tools:
     name: "GitHub Copilot"
     tasks:
       rules:
-        name: "Project Rules"
-        description: "Copy project-specific files to .ai/"
-        type: "copy-files"
-        source: "assets/rules/{project-type}/"
+        name: "Project Rules from Prompt Library"
+        description: "Copy project-specific rules from Lullabot prompt library"
+        type: "remote-copy-files"
+        repository:
+          url: "https://github.com/Lullabot/prompt_library"
+          type: "branch"
+          target: "main"
+        source: "{project-type}/rules/"
         target: ".ai/rules"
         required: false
         requires-project: true
-        prompt: "Would you like to install project-specific files and guidelines?"
+        prompt: "Would you like to install project-specific rules from the prompt library?"
       agents-md:
         name: "AGENTS.md"
         description: "Create/update AGENTS.md with project-specific rules"
@@ -159,14 +175,18 @@ tools:
     name: "Windsurf"
     tasks:
       rules:
-        name: "Project Rules"
-        description: "Copy project-specific files to .ai/"
-        type: "copy-files"
-        source: "assets/rules/{project-type}/"
+        name: "Project Rules from Prompt Library"
+        description: "Copy project-specific rules from Lullabot prompt library"
+        type: "remote-copy-files"
+        repository:
+          url: "https://github.com/Lullabot/prompt_library"
+          type: "branch"
+          target: "main"
+        source: "{project-type}/rules/"
         target: ".ai/rules"
         required: false
         requires-project: true
-        prompt: "Would you like to install project-specific files and guidelines?"
+        prompt: "Would you like to install project-specific rules from the prompt library?"
       agents-md:
         name: "AGENTS.md"
         description: "Create/update AGENTS.md with project-specific rules"
@@ -186,8 +206,8 @@ tools:
         required: false
         prompt: "Would you like to create a Windsurf wrapper file?"
 projects:
-  drupal:
-    name: "Drupal"
+  development:
+    name: "Development"
     validation:
       requiredFiles:
         - "composer.json"
@@ -204,7 +224,7 @@ projects:
     name: "Design"
   project-management:
     name: "Project Management"
-  qa:
+  quality-assurance:
     name: "Quality Assurance"
   sales-marketing:
     name: "Sales and Marketing"

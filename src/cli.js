@@ -116,6 +116,10 @@ async function initSetup(options, dependencies) {
   } catch (error) {
     spinner?.fail('Setup failed');
     throw error;
+  } finally {
+    // Clean up any temporary repositories from remote-copy-files tasks
+    const { cleanupAllClones } = await import('./git-operations.js');
+    await cleanupAllClones();
   }
 }
 
@@ -227,7 +231,10 @@ function processTaskResults(config, results) {
   // Process successful task results
   for (const result of results) {
     if (result.success && result.result) {
-      if (result.task.type === 'copy-files') {
+      if (
+        result.task.type === 'copy-files' ||
+        result.task.type === 'remote-copy-files'
+      ) {
         // Add copied files to the files array
         if (Array.isArray(result.result)) {
           updatedConfig.files.push(...result.result);
@@ -291,7 +298,10 @@ async function executeEnabledTasks(
         );
 
         // Accumulate files from this task's result
-        if (task.type === 'copy-files' && Array.isArray(result)) {
+        if (
+          (task.type === 'copy-files' || task.type === 'remote-copy-files') &&
+          Array.isArray(result)
+        ) {
           accumulatedFiles.push(...result);
         } else if (
           task.type === 'agents-md' &&
@@ -437,6 +447,10 @@ async function updateSetup(options, dependencies) {
   } catch (error) {
     spinner?.fail('Update failed');
     throw error;
+  } finally {
+    // Clean up any temporary repositories from remote-copy-files tasks
+    const { cleanupAllClones } = await import('./git-operations.js');
+    await cleanupAllClones();
   }
 }
 
@@ -535,7 +549,10 @@ async function performUpdate(currentConfig, fullConfig, options, dependencies) {
         );
 
         // Accumulate files from this task's result
-        if (task.type === 'copy-files' && Array.isArray(result)) {
+        if (
+          (task.type === 'copy-files' || task.type === 'remote-copy-files') &&
+          Array.isArray(result)
+        ) {
           accumulatedFiles.push(...result);
         } else if (
           task.type === 'agents-md' &&
@@ -1122,6 +1139,7 @@ export {
   // Export utility functions for testing
   handleDryRun,
   executeEnabledTasks,
+  processTaskResults,
   displaySuccessSummary,
   checkIfUpdateNeeded,
   handleUpdateDryRun,
