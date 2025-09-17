@@ -338,13 +338,16 @@ describe('Tool Config Module - Focused', () => {
         const mockConfig = {
           tools: config.tools,
           projects: {
-            drupal: {
+            development: {
+              // No tasks property
+            },
+            'quality-assurance': {
               // No tasks property
             }
           }
         };
 
-        const tasks = toolConfig.getTasks('cursor', 'drupal', mockConfig);
+        const tasks = toolConfig.getTasks('cursor', 'development', mockConfig);
 
         expect(tasks).toBeDefined();
         expect(typeof tasks).toBe('object');

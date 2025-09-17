@@ -241,16 +241,41 @@ function getAvailableProjectTypes(tool, toolConfig) {
 }
 
 /**
+ * Validate that a task's projects array contains valid project types.
+ *
+ * @param {Object} task - Task configuration object
+ * @param {string} taskId - Task identifier for error messages
+ * @param {Object} config - Full configuration object
+ * @throws {Error} If projects array contains invalid project types
+ */
+function validateTaskProjects(task, taskId, config) {
+  if (task.projects && Array.isArray(task.projects)) {
+    const availableProjects = Object.keys(config.projects || {});
+    const invalidProjects = task.projects.filter(
+      (project) => !availableProjects.includes(project)
+    );
+
+    if (invalidProjects.length > 0) {
+      throw new Error(
+        `Task '${taskId}' references invalid project types: ${invalidProjects.join(', ')}. ` +
+          `Available project types: ${availableProjects.join(', ')}`
+      );
+    }
+  }
+}
+
+/**
  * Get tasks for the given tool and project type.
  * Combines tool-specific tasks and project-specific tasks into a single object.
  * Each task is marked with its source (tool or project) for tracking.
  * Filters out tasks that require a project when no project is selected.
+ * Filters out tasks based on their projects array configuration.
  *
  * @param {string} tool - The tool identifier
  * @param {string|null} projectType - The project type or null for "None"
  * @param {Object} config - Full configuration object
  * @returns {Object} Object containing all available tasks
- * @throws {Error} If tool configuration is not found
+ * @throws {Error} If tool configuration is not found or projects array is invalid
  */
 function getTasks(tool, projectType, config) {
   const toolSettings = config.tools[tool];
@@ -263,9 +288,28 @@ function getTasks(tool, projectType, config) {
   // Add tool tasks
   if (toolSettings.tasks) {
     for (const [taskId, task] of Object.entries(toolSettings.tasks)) {
+      // Validate projects array if present
+      validateTaskProjects(task, taskId, config);
+
       // Skip tasks that require a project when no project is selected
       if (task['requires-project'] && !projectType) {
         continue;
+      }
+
+      // Filter tasks based on projects array
+      if (task.projects !== undefined) {
+        if (task.projects.length === 0) {
+          // Empty array = applies to no projects
+          continue;
+        }
+        if (projectType && !task.projects.includes(projectType)) {
+          // Project specified but not in projects array
+          continue;
+        }
+        if (!projectType && task.projects.length > 0) {
+          // No project selected but task requires specific projects
+          continue;
+        }
       }
 
       tasks[taskId] = {
@@ -281,6 +325,9 @@ function getTasks(tool, projectType, config) {
     for (const [taskId, task] of Object.entries(
       config.projects[projectType].tasks
     )) {
+      // Validate projects array if present
+      validateTaskProjects(task, taskId, config);
+
       tasks[taskId] = {
         ...task,
         id: taskId,
@@ -299,5 +346,6 @@ export {
   getToolSettings,
   getAvailableTools,
   getAvailableProjectTypes,
-  getTasks
+  getTasks,
+  validateTaskProjects
 };

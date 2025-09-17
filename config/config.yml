@@ -6,6 +6,7 @@ tools:
         name: "Project Rules from Prompt Library"
         description: "Copy project-specific rules from Lullabot prompt library"
         type: "remote-copy-files"
+        link: "https://github.com/Lullabot/prompt_library"
         repository:
           url: "https://github.com/Lullabot/prompt_library"
           type: "branch"
@@ -15,6 +16,18 @@ tools:
         required: false
         requires-project: true
         prompt: "Would you like to install project-specific rules from the prompt library?"
+      ai-task-manager:
+        name: "AI Task Manager"
+        description: "Set up AI Task Manager"
+        type: "package-install"
+        link: "https://github.com/e0ipso/ai-task-manager"
+        package:
+          name: "@e0ipso/ai-task-manager"
+          type: "npx"
+          install-command: "npx @e0ipso/ai-task-manager init --assistants claude"
+          version-command: "npx @e0ipso/ai-task-manager init --version"
+        required: false
+        prompt: "Would you like to set up AI Task Manager?"
       agents-md:
         name: "AGENTS.md"
         description: "Create/update AGENTS.md with project-specific rules"
@@ -25,14 +38,14 @@ tools:
         required: false
         prompt: "Would you like to set up AGENTS.md with project-specific rules?"
       wrapper:
-        name: "claude.md Wrapper"
+        name: "CLAUDE.md Wrapper"
         description: "Create claude.md wrapper file"
         type: "copy-files"
         source: "assets/wrappers/"
         items: { "claude.md": "CLAUDE.md" }
         target: "."
         required: false
-        prompt: "Would you like to create a claude.md wrapper file?"
+        prompt: "Would you like to create a CLAUDE.md wrapper file?"
   cursor:
     name: "Cursor"
     tasks:
@@ -40,6 +53,7 @@ tools:
         name: "Memory Bank Setup"
         description: "Initialize cursor-bank for AI assistance"
         type: "package-install"
+        link: "https://github.com/tacticlaunch/cursor-bank"
         package:
           name: "cursor-bank"
           type: "npx"
@@ -51,6 +65,7 @@ tools:
         name: "Project Rules from Prompt Library"
         description: "Copy project-specific rules from Lullabot prompt library"
         type: "remote-copy-files"
+        link: "https://github.com/Lullabot/prompt_library"
         repository:
           url: "https://github.com/Lullabot/prompt_library"
           type: "branch"
@@ -60,6 +75,23 @@ tools:
         required: false
         requires-project: true
         prompt: "Would you like to install project-specific rules from the prompt library?"
+      drupal-rules:
+        name: "Drupal Rules"
+        description: "Copy Drupal rules from ivangrynenko/cursorrules"
+        type: "remote-copy-files"
+        link: "https://github.com/ivangrynenko/cursorrules"
+        repository:
+          url: "https://github.com/ivangrynenko/cursorrules"
+          type: "branch"
+          target: "main"
+        source: ".cursor/rules/"
+        target: ".ai/rules"
+        items:
+          - "drupal-*.mdc"
+          - "*drupal-*.mdc"
+        projects: ["development"]
+        required: false
+        prompt: "Would you like to install Drupal rules from ivangrynenko/cursorrules?"
       agents-md:
         name: "AGENTS.md"
         description: "Create/update AGENTS.md with project-specific rules"
@@ -79,17 +111,6 @@ tools:
         target: ".vscode/"
         required: false
         prompt: "Would you like to set up VSCode XDebug for PHP debugging?"
-      # git-hooks:
-      #   name: "Git Hooks"
-      #   description: "Set up Git hooks with Husky"
-      #   type: "package-install"
-      #   package:
-      #     name: "husky"
-      #     type: "npm"
-      #     install-command: "npm install --save-dev husky && npx husky install"
-      #     version-command: "npm list husky"
-      #   required: false
-      #   prompt: "Would you like to set up Git hooks with Husky?"
   gemini:
     name: "Gemini"
     tasks:
@@ -97,6 +118,7 @@ tools:
         name: "Project Rules from Prompt Library"
         description: "Copy project-specific rules from Lullabot prompt library"
         type: "remote-copy-files"
+        link: "https://github.com/Lullabot/prompt_library"
         repository:
           url: "https://github.com/Lullabot/prompt_library"
           type: "branch"
@@ -106,6 +128,18 @@ tools:
         required: false
         requires-project: true
         prompt: "Would you like to install project-specific rules from the prompt library?"
+      ai-task-manager:
+        name: "AI Task Manager"
+        description: "Set up AI Task Manager"
+        type: "package-install"
+        link: "https://github.com/e0ipso/ai-task-manager"
+        package:
+          name: "@e0ipso/ai-task-manager"
+          type: "npx"
+          install-command: "npx @e0ipso/ai-task-manager init --assistants gemini"
+          version-command: "npx @e0ipso/ai-task-manager init --version"
+        required: false
+        prompt: "Would you like to set up AI Task Manager?"
       agents-md:
         name: "AGENTS.md"
         description: "Create/update AGENTS.md with project-specific rules"
@@ -228,27 +262,3 @@ projects:
     name: "Quality Assurance"
   sales-marketing:
     name: "Sales and Marketing"
-  # react:
-  #   name: "React"
-  #   validation:
-  #     requiredFiles:
-  #       - "package.json"
-  #       - ".git"
-  #     requiredContent:
-  #       package.json: "react"
-  #     optionalFiles:
-  #       - "README.md"
-  #       - "src/App.js"
-  #       - "public/index.html"
-  # laravel:
-  #   name: "Laravel"
-  #   validation:
-  #     requiredFiles:
-  #       - "composer.json"
-  #       - ".git"
-  #     requiredContent:
-  #       composer.json: "laravel/framework"
-  #     optionalFiles:
-  #       - "README.md"
-  #       - "package.json"
-  #       - ".env"

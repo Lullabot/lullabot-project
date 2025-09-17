@@ -6,6 +6,7 @@ import chalk from 'chalk';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { expandPatterns } from './utils/pattern-matcher.js';
 
 const execAsync = promisify(exec);
 
@@ -885,11 +886,16 @@ async function copyFilesFromRemote(
     throw new Error(`Source path not found in repository: ${sourcePath}`);
   }
 
-  // Smart filtering logic
+  // Smart filtering logic with pattern support
   let filesToCopy = [];
   if (items && (Array.isArray(items) || Object.keys(items).length > 0)) {
-    // Items specified - copy exact files regardless of extension
-    filesToCopy = Array.isArray(items) ? items : Object.keys(items);
+    if (Array.isArray(items)) {
+      // Expand patterns to actual filenames
+      filesToCopy = await expandPatterns(items, fullSourcePath, true);
+    } else {
+      // Object format - no pattern support (for renaming)
+      filesToCopy = Object.keys(items);
+    }
   } else {
     // No items - copy only .md files
     const allFiles = await fs.readdir(fullSourcePath);
