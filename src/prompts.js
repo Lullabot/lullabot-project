@@ -170,11 +170,19 @@ async function getTaskPreferences(options, tasks, promptFn) {
       taskPreferences[taskId] = false;
     } else {
       // Prompt user for optional tasks
+      let message = task.prompt || `Would you like to run: ${task.name}?`;
+
+      // Add clickable link if available
+      if (task.link) {
+        // Use terminal link formatting: \x1b]8;;URL\x1b\\Clickable Text\x1b]8;;\x1b\\
+        message += ` (\x1b]8;;${task.link}\x1b\\Learn more\x1b]8;;\x1b\\)`;
+      }
+
       const answer = await promptFn([
         {
           type: 'confirm',
           name: 'enabled',
-          message: task.prompt || `Would you like to run: ${task.name}?`,
+          message,
           default: true
         }
       ]);

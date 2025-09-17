@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
+import { validatePatterns } from './utils/pattern-matcher.js';
 
 /**
  * Validate current directory for common project indicators.
@@ -155,10 +156,100 @@ async function validateFileContent(
   return true;
 }
 
+/**
+ * Validate task configuration for copy-files and remote-copy-files tasks.
+ * Checks for valid patterns and proper configuration.
+ *
+ * @param {Object} task - Task configuration object
+ * @throws {Error} If task configuration is invalid
+ */
+function validateTaskConfig(task) {
+  if (task.type === 'copy-files' || task.type === 'remote-copy-files') {
+    if (task.items) {
+      if (Array.isArray(task.items)) {
+        // Validate patterns in array format
+        try {
+          validatePatterns(task.items);
+        } catch (error) {
+          throw new Error(
+            `Invalid pattern in ${task.type} task: ${error.message}`
+          );
+        }
+      } else if (typeof task.items === 'object') {
+        // Object format - no pattern support (for renaming)
+        for (const [key, value] of Object.entries(task.items)) {
+          if (typeof key !== 'string' || typeof value !== 'string') {
+            throw new Error(
+              `Invalid item in ${task.type} task: keys and values must be strings for renaming`
+            );
+          }
+          // Check if key contains pattern characters
+          if (
+            key.includes('*') ||
+            key.includes('?') ||
+            key.includes('[') ||
+            key.includes('{') ||
+            key.startsWith('/')
+          ) {
+            throw new Error(
+              `Wildcard patterns not supported in object format (renaming) for ${task.type} task. Use array format for patterns.`
+            );
+          }
+        }
+      } else {
+        throw new Error(
+          `Invalid items format in ${task.type} task: must be array or object`
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Validate URL format for task links.
+ * Checks if the URL has a valid format (starts with http:// or https://).
+ *
+ * @param {string} url - URL to validate
+ * @returns {boolean} True if URL format is valid
+ */
+function validateUrl(url) {
+  if (typeof url !== 'string') {
+    return false;
+  }
+
+  // Basic URL validation - must start with http:// or https://
+  const urlPattern = /^https?:\/\/.+/;
+  return urlPattern.test(url);
+}
+
+/**
+ * Validate task configuration for all task types.
+ * Checks for valid patterns, proper configuration, and URL format.
+ *
+ * @param {Object} task - Task configuration object
+ * @throws {Error} If task configuration is invalid
+ */
+function validateTaskConfigWithLinks(task) {
+  // Validate existing task configuration
+  validateTaskConfig(task);
+
+  // Validate link if present
+  if (task.link !== undefined) {
+    if (!validateUrl(task.link)) {
+      throw new Error(
+        `Invalid link URL in ${task.type} task: must be a valid HTTP/HTTPS URL`
+      );
+    }
+  }
+}
+
 export {
   validateDirectory,
   isProjectDirectory,
   validateFile,
   validateDirectoryWritable,
-  validateFileContent
+  validateFileContent,
+  validateTaskConfig,
+  validateUrl,
+  validateTaskConfigWithLinks
 };

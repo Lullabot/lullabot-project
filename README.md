@@ -548,7 +548,37 @@ rules:
 **Configuration:**
 - `source`: Source directory with placeholders (`{tool}`, `{project-type}`)
 - `target`: Target directory with placeholders
-- `items`: Optional array of specific files/directories to copy (if not specified, copies all items)
+- `items`: Optional array of specific files/directories to copy, or object for renaming (if not specified, copies all items)
+
+**Pattern-based File Selection:**
+The `items` key now supports advanced pattern matching for flexible file selection:
+
+**Glob Patterns:**
+```yaml
+items:
+  - "*.md"                    # All markdown files
+  - "*.{js,ts,jsx,tsx}"      # All JavaScript/TypeScript files
+  - "test-*"                  # Files starting with "test-"
+  - "*-config.*"              # Files ending with "-config"
+  - "**/*.md"                 # Recursive markdown files
+  - "src/**/*.{js,ts}"        # Recursive JS/TS in src/
+```
+
+**Regex Patterns:**
+```yaml
+items:
+  - "/^config-.*\\.json$/"    # Files starting with "config-" and ending with ".json"
+  - "/.*\\.(test|spec)\\.(js|ts)$/"  # Test files
+  - "/^[A-Z].*\\.md$/"        # Markdown files starting with capital letter
+```
+
+**Mixed Patterns:**
+```yaml
+items:
+  - "*.md"                    # Glob pattern
+  - "README.txt"              # Specific file
+  - "/^config-.*\\.json$/"    # Regex pattern
+```
 
 **Copy Options:**
 - **Copy all files/directories** (default behavior):
@@ -605,19 +635,46 @@ rules:
 **Configuration:**
 - `repository`: Repository configuration object
   - `url`: Repository URL
-  - `type`: Target type (`branch` or `tag`)
+  - `type`: Repository reference type (`branch` or `tag`)
   - `target`: Branch or tag name
-- `source`: Source path within repository with placeholders (`{project-type}`)
+- `source`: Source path within the repository (supports `{project-type}` placeholder)
 - `target`: Target directory for copied files
-- `items`: Optional array of specific files to copy, or object for renaming
+- `items`: Optional array of specific files to copy with pattern support (if not specified, copies all `.md` files)
+
+**Pattern Support:**
+The `remote-copy-files` task supports the same pattern matching as `copy-files`:
+
+```yaml
+rules:
+  type: "remote-copy-files"
+  repository:
+    url: "https://github.com/Lullabot/prompt_library"
+    type: "branch"
+    target: "main"
+  source: "{project-type}/rules/"
+  target: ".ai/rules"
+  items: ["*.md", "*.{json,yaml}", "/^config-.*\\.json$/"]
+```
 - `required`: Whether the task is required
 - `prompt`: User prompt for the task
 
 **Features:**
 - **Smart Filtering**: If `items` specified, copy exact files; otherwise copy only `.md` files
+- **Pattern Matching**: Support for glob patterns and regex patterns in `items` array
+- **Recursive Search**: Support for recursive directory patterns with `**`
+
+**Pattern Limitations:**
+- Patterns only work with array format in `items` (not object format for renaming)
+- Regex patterns must be enclosed in forward slashes: `/pattern/flags`
+- Glob patterns support standard wildcards: `*`, `?`, `[]`, `{}`, `**`
+
+**Error Handling:**
+- Invalid regex patterns will throw descriptive errors
+- Non-string patterns in arrays will be rejected
+- Patterns in object format (renaming) will cause validation errors
 - **Shallow Cloning**: Only download latest commit for efficiency
 - **Clone Caching**: Reuse cloned repositories for multiple tasks
-- **Error Handling**: Comprehensive error handling for network issues and missing files
+- **Network Error Handling**: Comprehensive error handling for network issues and missing files
 - **File Renaming**: Support for renaming files during copy operations
 
 **Note**: The `--local` flag does not affect `remote-copy-files` tasks, which always pull from remote repositories.
@@ -650,6 +707,99 @@ custom-setup:
 **Optional Fields:**
 - `description`: Detailed task description
 - `prompt`: Custom prompt text for optional tasks
+- `projects`: Array of project types this task applies to (see Project-Specific Tasks below)
+- `link`: URL to learn more about the task (displayed in prompts)
+
+### Project-Specific Tasks
+
+Tasks can be limited to specific project types using the `projects` array. This allows you to show only relevant tasks based on the selected project type.
+
+**Configuration:**
+```yaml
+# Task applies to specific projects
+development-task:
+  name: "Development Tools"
+  type: "copy-files"
+  projects: ["development"]
+  source: "assets/dev/"
+  target: ".dev/"
+  required: false
+  prompt: "Set up development tools?"
+
+# Task applies to multiple projects
+multi-project-task:
+  name: "Quality Tools"
+  type: "copy-files"
+  projects: ["development", "quality-assurance"]
+  source: "assets/quality/"
+  target: ".quality/"
+  required: false
+  prompt: "Set up quality tools?"
+
+# Task applies to all projects (no projects key)
+universal-task:
+  name: "Universal Setup"
+  type: "copy-files"
+  source: "assets/universal/"
+  target: ".universal/"
+  required: false
+  prompt: "Set up universal tools?"
+
+# Task is disabled (applies to no projects)
+disabled-task:
+  name: "Disabled Task"
+  type: "copy-files"
+  projects: []
+  source: "assets/disabled/"
+  target: ".disabled/"
+  required: false
+  prompt: "This task will never appear"
+```
+
+**Behavior:**
+- **No `projects` key**: Task applies to all project types
+- **Empty `projects: []`**: Task is disabled and will not appear for any project
+- **Specific projects**: Task only appears when one of the specified project types is selected
+- **Multiple projects**: Task appears when any of the specified project types is selected
+
+**Examples:**
+- Development-specific tools only show for `development` projects
+- QA tools show for both `development` and `quality-assurance` projects
+- Universal tools (like wrappers) show for all project types
+- Disabled tasks never appear in the task list
+
+### Task Links
+
+Tasks can include helpful links that are displayed in prompts to provide additional context and resources.
+
+**Configuration:**
+```yaml
+rules:
+  name: "Project Rules from Prompt Library"
+  type: "remote-copy-files"
+  link: "https://github.com/Lullabot/prompt_library"
+  # ... rest of config
+
+memory-bank:
+  name: "Memory Bank Setup"
+  type: "package-install"
+  link: "https://cursor.sh/docs/memory-bank"
+  # ... rest of config
+```
+
+**Behavior:**
+- Links are displayed inline with the main prompt text
+- Format: `(Learn more)` - the text "Learn more" is a clickable link
+- Uses terminal link formatting (OSC 8 escape sequences) for clickability
+- Works in modern terminals like iTerm2, VS Code terminal, etc.
+- Falls back gracefully in terminals that don't support clickable links
+- URLs must be valid HTTP/HTTPS links
+- Optional field - tasks work fine without links
+
+**Example Prompt:**
+```
+Would you like to install project-specific rules from the prompt library? (Learn more)
+```
 
 ### Task Execution
 

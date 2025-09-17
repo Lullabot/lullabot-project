@@ -77,9 +77,9 @@ describe('Tool Config Module', () => {
       expect(settings.tasks).toBeDefined();
     });
 
-    it('should get tasks for cursor with drupal project', async () => {
+    it('should get tasks for cursor with development project', async () => {
       const config = await toolConfig.loadConfig();
-      const tasks = toolConfig.getTasks('cursor', 'drupal', config);
+      const tasks = toolConfig.getTasks('cursor', 'development', config);
       expect(tasks).toBeDefined();
       expect(tasks['memory-bank']).toBeDefined();
       expect(tasks.rules).toBeDefined();
@@ -113,7 +113,7 @@ describe('Tool Config Module', () => {
       expect(tasks).toBeDefined();
       // Should contain tool tasks
       expect(tasks['memory-bank']).toBeDefined();
-      expect(tasks.rules).toBeDefined(); // Rules is a tool task, not project task
+      expect(tasks.rules).toBeDefined(); // Rules is now available for all projects (no projects filter)
       // But rules requires a project, so it should be filtered out when no project
       const tasksWithoutProject = toolConfig.getTasks('cursor', null, config);
       expect(tasksWithoutProject.rules).toBeUndefined(); // This should be undefined when no project
@@ -167,7 +167,7 @@ describe('Tool Config Module', () => {
       const config = await toolConfig.loadConfig();
 
       // Test with project selected
-      const tasksWithProject = toolConfig.getTasks('cursor', 'drupal', config);
+      const tasksWithProject = toolConfig.getTasks('cursor', 'development', config);
       expect(tasksWithProject.rules).toBeDefined();
 
       // Test without project selected

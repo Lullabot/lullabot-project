@@ -2,6 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
 import { getFilesFromGit } from '../git-operations.js';
+import { expandPatterns } from '../utils/pattern-matcher.js';
 
 /**
  * Copy files from Git repository to the appropriate location.
@@ -130,16 +131,23 @@ async function copyFiles(
   await fs.ensureDir(targetDir);
 
   // Handle items as array or object for renaming
-  const itemsToCopy = Array.isArray(items) ? items : Object.keys(items || {});
-  const renameMap = Array.isArray(items) ? {} : items || {};
+  let itemsToCopy = [];
+  let renameMap = {};
 
-  const trackedFiles = [];
-
-  // If no specific items, copy all files in the directory
-  if (itemsToCopy.length === 0) {
+  if (Array.isArray(items)) {
+    // Expand patterns to actual filenames
+    itemsToCopy = await expandPatterns(items, sourceDir, true);
+  } else if (items && typeof items === 'object') {
+    // Object format - no pattern support (for renaming)
+    itemsToCopy = Object.keys(items);
+    renameMap = items;
+  } else {
+    // No specific items, copy all files in the directory
     const allItems = await fs.readdir(sourceDir);
     itemsToCopy.push(...allItems);
   }
+
+  const trackedFiles = [];
 
   for (const fileName of itemsToCopy) {
     const sourceItem = path.join(sourceDir, fileName);

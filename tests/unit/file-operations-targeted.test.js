@@ -83,16 +83,10 @@ describe('File Operations - Targeted Coverage Tests', () => {
       // Create one file but try to copy two
       await fs.writeFile(path.join(sourceDir, 'file1.txt'), 'content1');
 
-      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
-
       const result = await copyFiles(sourceDir, targetDir, true, ['file1.txt', 'nonexistent.txt']);
 
-      expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Warning: nonexistent.txt not found in source directory')
-      );
+      // With new pattern-based implementation, non-existent files are silently ignored
       expect(result).toHaveLength(1); // Only file1.txt was copied
-
-      consoleLogSpy.mockRestore();
     });
   });
 
@@ -176,8 +170,8 @@ describe('File Operations - Targeted Coverage Tests', () => {
       await fs.ensureDir(sourceDir);
       await fs.writeFile(path.join(sourceDir, 'test.txt'), 'content');
 
-      const result = await copyFiles(sourceDir, targetDir, false, []);
-      expect(result).toHaveLength(1); // Empty array means copy all files
+      const result = await copyFiles(sourceDir, targetDir, false, null);
+      expect(result).toHaveLength(1); // null means copy all files
     });
 
     it('should handle null items parameter in copyFiles', async () => {
