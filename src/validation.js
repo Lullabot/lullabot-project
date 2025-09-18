@@ -243,6 +243,158 @@ function validateTaskConfigWithLinks(task) {
   }
 }
 
+/**
+ * Validate shared tasks configuration.
+ * Checks that shared_tasks section exists and contains valid task definitions.
+ *
+ * @param {Object} config - Full configuration object
+ * @throws {Error} If shared_tasks configuration is invalid
+ */
+function validateSharedTasks(config) {
+  if (!config.shared_tasks) {
+    throw new Error('shared_tasks section is required in configuration');
+  }
+
+  if (typeof config.shared_tasks !== 'object') {
+    throw new Error('shared_tasks must be an object');
+  }
+
+  // Validate each shared task
+  for (const [taskName, taskConfig] of Object.entries(config.shared_tasks)) {
+    if (typeof taskConfig !== 'object') {
+      throw new Error(`Shared task '${taskName}' must be an object`);
+    }
+
+    // Validate the shared task configuration
+    validateTaskConfigWithLinks(taskConfig);
+  }
+}
+
+/**
+ * Validate shared task reference syntax.
+ * Checks that a reference string follows the correct format.
+ *
+ * @param {string} reference - Reference string to validate
+ * @returns {boolean} True if reference format is valid
+ */
+function validateSharedTaskReference(reference) {
+  if (typeof reference !== 'string') {
+    return false;
+  }
+
+  // Must start with @shared_tasks. and have a task name (starting with letter or underscore)
+  const referencePattern = /^@shared_tasks\.[a-zA-Z_][a-zA-Z0-9_-]*$/;
+  return referencePattern.test(reference);
+}
+
+/**
+ * Validate extends syntax in task configuration.
+ * Checks that extends property follows the correct format.
+ *
+ * @param {string} extendsValue - Extends string to validate
+ * @returns {boolean} True if extends format is valid
+ */
+function validateExtendsSyntax(extendsValue) {
+  if (typeof extendsValue !== 'string') {
+    return false;
+  }
+
+  // Must start with @shared_tasks. and have a task name (starting with letter or underscore)
+  const extendsPattern = /^@shared_tasks\.[a-zA-Z_][a-zA-Z0-9_-]*$/;
+  return extendsPattern.test(extendsValue);
+}
+
+/**
+ * Validate that all shared task references point to existing shared tasks.
+ * Checks that referenced shared tasks actually exist in the configuration.
+ *
+ * @param {Object} config - Full configuration object
+ * @throws {Error} If any reference points to a non-existent shared task
+ */
+function validateSharedTaskReferences(config) {
+  if (!config.shared_tasks) {
+    return; // No shared tasks to validate
+  }
+
+  const sharedTaskNames = Object.keys(config.shared_tasks);
+
+  // Check all tools for references
+  for (const [toolName, toolConfig] of Object.entries(config.tools || {})) {
+    if (toolConfig.tasks) {
+      for (const [taskId, task] of Object.entries(toolConfig.tasks)) {
+        // Check direct references
+        if (typeof task === 'string' && task.startsWith('@shared_tasks.')) {
+          if (!validateSharedTaskReference(task)) {
+            throw new Error(
+              `Invalid shared task reference in tool '${toolName}', task '${taskId}': ${task}`
+            );
+          }
+          const taskName = task.replace('@shared_tasks.', '');
+          if (!sharedTaskNames.includes(taskName)) {
+            throw new Error(
+              `Shared task reference not found in tool '${toolName}', task '${taskId}': ${task}`
+            );
+          }
+        }
+
+        // Check extends references
+        if (task.extends && typeof task.extends === 'string') {
+          if (!validateExtendsSyntax(task.extends)) {
+            throw new Error(
+              `Invalid extends syntax in tool '${toolName}', task '${taskId}': ${task.extends}`
+            );
+          }
+          const taskName = task.extends.replace('@shared_tasks.', '');
+          if (!sharedTaskNames.includes(taskName)) {
+            throw new Error(
+              `Extends reference not found in tool '${toolName}', task '${taskId}': ${task.extends}`
+            );
+          }
+        }
+      }
+    }
+  }
+
+  // Check project tasks for references
+  for (const [projectName, projectConfig] of Object.entries(
+    config.projects || {}
+  )) {
+    if (projectConfig.tasks) {
+      for (const [taskId, task] of Object.entries(projectConfig.tasks)) {
+        // Check direct references
+        if (typeof task === 'string' && task.startsWith('@shared_tasks.')) {
+          if (!validateSharedTaskReference(task)) {
+            throw new Error(
+              `Invalid shared task reference in project '${projectName}', task '${taskId}': ${task}`
+            );
+          }
+          const taskName = task.replace('@shared_tasks.', '');
+          if (!sharedTaskNames.includes(taskName)) {
+            throw new Error(
+              `Shared task reference not found in project '${projectName}', task '${taskId}': ${task}`
+            );
+          }
+        }
+
+        // Check extends references
+        if (task.extends && typeof task.extends === 'string') {
+          if (!validateExtendsSyntax(task.extends)) {
+            throw new Error(
+              `Invalid extends syntax in project '${projectName}', task '${taskId}': ${task.extends}`
+            );
+          }
+          const taskName = task.extends.replace('@shared_tasks.', '');
+          if (!sharedTaskNames.includes(taskName)) {
+            throw new Error(
+              `Extends reference not found in project '${projectName}', task '${taskId}': ${task.extends}`
+            );
+          }
+        }
+      }
+    }
+  }
+}
+
 export {
   validateDirectory,
   isProjectDirectory,
@@ -251,5 +403,9 @@ export {
   validateFileContent,
   validateTaskConfig,
   validateUrl,
-  validateTaskConfigWithLinks
+  validateTaskConfigWithLinks,
+  validateSharedTasks,
+  validateSharedTaskReference,
+  validateExtendsSyntax,
+  validateSharedTaskReferences
 };

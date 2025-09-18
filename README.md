@@ -801,6 +801,178 @@ memory-bank:
 Would you like to install project-specific rules from the prompt library? (Learn more)
 ```
 
+### Shared Tasks
+
+The tool supports shared task definitions to reduce duplication in the configuration file. This is particularly useful for tasks that are identical across multiple tools.
+
+**Configuration:**
+```yaml
+shared_tasks:
+  rules:
+    name: "Project Rules from Prompt Library"
+    description: "Copy project-specific rules from Lullabot prompt library"
+    type: "remote-copy-files"
+    link: "https://github.com/Lullabot/prompt_library"
+    repository:
+      url: "https://github.com/Lullabot/prompt_library"
+      type: "branch"
+      target: "main"
+    source: "{project-type}/rules/"
+    target: ".ai/rules"
+    required: false
+    requires-project: true
+    prompt: "Would you like to install project-specific rules from the prompt library?"
+
+  agents-md:
+    name: "AGENTS.md"
+    description: "Create/update AGENTS.md with project-specific rules"
+    type: "agents-md"
+    source: "assets/AGENTS.md"
+    target: "."
+    link-type: "markdown"
+    required: false
+    prompt: "Would you like to set up AGENTS.md with project-specific rules?"
+
+  wrapper:
+    name: "AI Tool Wrapper"
+    description: "Create AI tool wrapper file"
+    type: "copy-files"
+    source: "assets/wrappers/"
+    required: false
+    prompt: "Would you like to create an AI tool wrapper file?"
+
+tools:
+  claude:
+    name: "Claude Code"
+    tasks:
+      rules: "@shared_tasks.rules"
+      agents-md:
+        extends: "@shared_tasks.agents-md"
+        link-type: "@"
+      wrapper:
+        extends: "@shared_tasks.wrapper"
+        items: { "claude.md": "CLAUDE.md" }
+        target: "."
+```
+
+**Reference Syntax:**
+- **Direct Reference**: `"@shared_tasks.taskname"` - Use the shared task as-is
+- **Extends with Overrides**: Use `extends` property to inherit from a shared task and override specific properties
+
+**Extends Example:**
+```yaml
+agents-md:
+  extends: "@shared_tasks.agents-md"
+  link-type: "@"  # Override the default "markdown" value
+```
+
+**Wrapper Task Example:**
+The wrapper task demonstrates how to use shared tasks with tool-specific overrides:
+
+```yaml
+# Shared wrapper task definition
+shared_tasks:
+  wrapper:
+    name: "AI Tool Wrapper"
+    description: "Create AI tool wrapper file"
+    type: "copy-files"
+    source: "assets/wrappers/"
+    required: false
+    prompt: "Would you like to create an AI tool wrapper file?"
+
+# Tool-specific implementations
+tools:
+  claude:
+    tasks:
+      wrapper:
+        extends: "@shared_tasks.wrapper"
+        items: { "claude.md": "CLAUDE.md" }
+        target: "."
+
+  github-copilot:
+    tasks:
+      wrapper:
+        extends: "@shared_tasks.wrapper"
+        items: { "github-copilot.md": "copilot-instructions.md" }
+        target: ".github/"
+
+  windsurf:
+    tasks:
+      wrapper:
+        extends: "@shared_tasks.wrapper"
+        items: { "windsurf.md": "agents.md" }
+        target: ".windsurf/rules/"
+```
+
+**Benefits:**
+- **Eliminates Duplication**: Define common tasks once, reference everywhere
+- **Consistent Updates**: Change shared task definition to update all references
+- **Flexible Overrides**: Use `extends` to customize shared tasks per tool
+- **Maintainable**: Easier to maintain and update task configurations
+
+**Validation:**
+- All shared task references are validated at startup
+- Invalid references cause the tool to fail with clear error messages
+- Extends syntax is validated for proper format
+
+### Variable Substitution
+
+Shared tasks and regular tasks support variable substitution to make configurations more dynamic and reduce duplication.
+
+**Supported Variables:**
+- `{tool}` - The current tool name (e.g., "claude", "gemini", "cursor")
+- `{project-type}` - The selected project type (e.g., "development", "quality-assurance")
+
+**Variable Usage:**
+```yaml
+shared_tasks:
+  ai-task-manager:
+    name: "AI Task Manager"
+    description: "Set up AI Task Manager"
+    type: "package-install"
+    link: "https://github.com/e0ipso/ai-task-manager"
+    package:
+      name: "@e0ipso/ai-task-manager"
+      type: "npx"
+      install-command: "npx @e0ipso/ai-task-manager init --assistants {tool}"
+      version-command: "npx @e0ipso/ai-task-manager init --version"
+    required: false
+    prompt: "Would you like to set up AI Task Manager?"
+
+tools:
+  claude:
+    tasks:
+      ai-task-manager: "@shared_tasks.ai-task-manager"
+  gemini:
+    tasks:
+      ai-task-manager: "@shared_tasks.ai-task-manager"
+```
+
+**Variable Features:**
+- **Nested Object Support**: Variables work in nested objects like `package.install-command`
+- **Multiple Variables**: Use multiple variables in the same string
+- **All Task Types**: Available in shared tasks, regular tasks, and extends overrides
+- **Automatic Substitution**: Variables are substituted when tasks are resolved
+
+**Examples:**
+```yaml
+# Multiple variables in same string
+command: "setup-{tool}-for-{project-type}"
+
+# Nested object variables
+package:
+  install-command: "npx @e0ipso/ai-task-manager init --assistants {tool}"
+
+# Path variables
+source: "{project-type}/rules/"
+target: ".ai/rules"
+```
+
+**Validation:**
+- Unsupported variables cause the tool to fail with clear error messages
+- `{tool}` variables require a tool context to be available
+- All variables are validated before substitution
+
 ### Task Execution
 
 - Tasks are executed in the order they are defined in the configuration
