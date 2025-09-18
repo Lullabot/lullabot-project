@@ -2,6 +2,10 @@ import fs from 'fs-extra';
 import path from 'path';
 import yaml from 'js-yaml';
 import chalk from 'chalk';
+import {
+  substituteVariables,
+  validateTaskVariables
+} from './utils/variable-substitution.js';
 
 /**
  * Load configuration from YAML file.
@@ -265,11 +269,98 @@ function validateTaskProjects(task, taskId, config) {
 }
 
 /**
+ * Resolve a shared task reference.
+ * Converts "@shared_tasks.taskname" to the actual task configuration.
+ *
+ * @param {string|Object} taskConfig - Task configuration (string reference or object)
+ * @param {Object} sharedTasks - Shared tasks configuration object
+ * @returns {Object} Resolved task configuration
+ * @throws {Error} If reference is invalid or shared task doesn't exist
+ */
+function resolveSharedTaskReference(taskConfig, sharedTasks) {
+  if (
+    typeof taskConfig === 'string' &&
+    taskConfig.startsWith('@shared_tasks.')
+  ) {
+    const taskName = taskConfig.replace('@shared_tasks.', '');
+
+    if (!sharedTasks || !sharedTasks[taskName]) {
+      throw new Error(`Shared task not found: ${taskConfig}`);
+    }
+
+    return sharedTasks[taskName];
+  }
+
+  return taskConfig;
+}
+
+/**
+ * Resolve a task with extends functionality.
+ * Merges a base shared task with overrides using shallow merge.
+ *
+ * @param {Object} taskConfig - Task configuration object
+ * @param {Object} sharedTasks - Shared tasks configuration object
+ * @returns {Object} Resolved task configuration with overrides applied
+ * @throws {Error} If extends reference is invalid or shared task doesn't exist
+ */
+function resolveTaskWithExtends(taskConfig, sharedTasks) {
+  if (
+    taskConfig.extends &&
+    typeof taskConfig.extends === 'string' &&
+    taskConfig.extends.startsWith('@shared_tasks.')
+  ) {
+    const baseTaskName = taskConfig.extends.replace('@shared_tasks.', '');
+
+    if (!sharedTasks || !sharedTasks[baseTaskName]) {
+      throw new Error(`Shared task not found: ${taskConfig.extends}`);
+    }
+
+    const baseTask = sharedTasks[baseTaskName];
+    // eslint-disable-next-line no-unused-vars
+    const { extends: _extends, ...overrides } = taskConfig;
+
+    // Shallow merge: overrides replace entire properties
+    return { ...baseTask, ...overrides };
+  }
+
+  return taskConfig;
+}
+
+/**
+ * Resolve all task references and extends in a task configuration.
+ * Handles both direct references and extends with overrides.
+ * Applies variable substitution for {tool} and {project-type}.
+ *
+ * @param {string|Object} taskConfig - Task configuration
+ * @param {Object} sharedTasks - Shared tasks configuration object
+ * @param {string} tool - Tool name for variable substitution
+ * @param {string|null} projectType - Project type for variable substitution
+ * @returns {Object} Fully resolved task configuration with variables substituted
+ * @throws {Error} If any reference is invalid or variables are unsupported
+ */
+function resolveTaskConfig(taskConfig, sharedTasks, tool, projectType) {
+  // First resolve direct references
+  let resolved = resolveSharedTaskReference(taskConfig, sharedTasks);
+
+  // Then resolve extends with overrides
+  resolved = resolveTaskWithExtends(resolved, sharedTasks);
+
+  // Validate variables before substitution
+  validateTaskVariables(resolved);
+
+  // Apply variable substitution
+  resolved = substituteVariables(resolved, tool, projectType);
+
+  return resolved;
+}
+
+/**
  * Get tasks for the given tool and project type.
  * Combines tool-specific tasks and project-specific tasks into a single object.
  * Each task is marked with its source (tool or project) for tracking.
  * Filters out tasks that require a project when no project is selected.
  * Filters out tasks based on their projects array configuration.
+ * Resolves shared task references and extends functionality.
  *
  * @param {string} tool - The tool identifier
  * @param {string|null} projectType - The project type or null for "None"
@@ -288,32 +379,40 @@ function getTasks(tool, projectType, config) {
   // Add tool tasks
   if (toolSettings.tasks) {
     for (const [taskId, task] of Object.entries(toolSettings.tasks)) {
+      // Resolve shared task references and extends with variable substitution
+      const resolvedTask = resolveTaskConfig(
+        task,
+        config.shared_tasks,
+        tool,
+        projectType
+      );
+
       // Validate projects array if present
-      validateTaskProjects(task, taskId, config);
+      validateTaskProjects(resolvedTask, taskId, config);
 
       // Skip tasks that require a project when no project is selected
-      if (task['requires-project'] && !projectType) {
+      if (resolvedTask['requires-project'] && !projectType) {
         continue;
       }
 
       // Filter tasks based on projects array
-      if (task.projects !== undefined) {
-        if (task.projects.length === 0) {
+      if (resolvedTask.projects !== undefined) {
+        if (resolvedTask.projects.length === 0) {
           // Empty array = applies to no projects
           continue;
         }
-        if (projectType && !task.projects.includes(projectType)) {
+        if (projectType && !resolvedTask.projects.includes(projectType)) {
           // Project specified but not in projects array
           continue;
         }
-        if (!projectType && task.projects.length > 0) {
+        if (!projectType && resolvedTask.projects.length > 0) {
           // No project selected but task requires specific projects
           continue;
         }
       }
 
       tasks[taskId] = {
-        ...task,
+        ...resolvedTask,
         id: taskId,
         taskSource: 'tool'
       };
@@ -325,11 +424,19 @@ function getTasks(tool, projectType, config) {
     for (const [taskId, task] of Object.entries(
       config.projects[projectType].tasks
     )) {
+      // Resolve shared task references and extends with variable substitution
+      const resolvedTask = resolveTaskConfig(
+        task,
+        config.shared_tasks,
+        tool,
+        projectType
+      );
+
       // Validate projects array if present
-      validateTaskProjects(task, taskId, config);
+      validateTaskProjects(resolvedTask, taskId, config);
 
       tasks[taskId] = {
-        ...task,
+        ...resolvedTask,
         id: taskId,
         taskSource: 'project'
       };
@@ -347,5 +454,8 @@ export {
   getAvailableTools,
   getAvailableProjectTypes,
   getTasks,
-  validateTaskProjects
+  validateTaskProjects,
+  resolveSharedTaskReference,
+  resolveTaskWithExtends,
+  resolveTaskConfig
 };

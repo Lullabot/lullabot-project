@@ -336,6 +336,7 @@ describe('Tool Config Module - Focused', () => {
       if (config.tools && config.tools.cursor) {
         // Test with a project that has no tasks
         const mockConfig = {
+          shared_tasks: config.shared_tasks, // Include shared_tasks for references
           tools: config.tools,
           projects: {
             development: {

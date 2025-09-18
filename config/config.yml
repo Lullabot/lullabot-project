@@ -1,54 +1,90 @@
+# =============================================================================
+# LULLABOT PROJECT SETUP CONFIGURATION
+# =============================================================================
+# This configuration defines shared tasks, tool-specific tasks, and project
+# types for the Lullabot Project Setup tool.
+
+# =============================================================================
+# SHARED TASKS
+# =============================================================================
+# Common task definitions that can be referenced by multiple tools to reduce
+# duplication and ensure consistency across the configuration.
+
+shared_tasks:
+  # Project rules from the centralized prompt library
+  rules:
+    name: "Project Rules from Prompt Library"
+    description: "Copy project-specific rules from Lullabot prompt library"
+    type: "remote-copy-files"
+    link: "https://github.com/Lullabot/prompt_library"
+    repository:
+      url: "https://github.com/Lullabot/prompt_library"
+      type: "branch"
+      target: "main"
+    source: "{project-type}/rules/"
+    target: ".ai/rules"
+    required: false
+    requires-project: true
+    prompt: "Would you like to install project-specific rules from the prompt library?"
+
+  # AGENTS.md file generation with project-specific rules
+  agents-md:
+    name: "AGENTS.md"
+    description: "Create/update AGENTS.md with project-specific rules"
+    type: "agents-md"
+    source: "assets/AGENTS.md"
+    target: "."
+    link-type: "markdown"
+    required: false
+    prompt: "Would you like to set up AGENTS.md with project-specific rules?"
+
+  # AI Task Manager setup with tool-specific configuration
+  ai-task-manager:
+    name: "AI Task Manager"
+    description: "Set up AI Task Manager"
+    type: "package-install"
+    link: "https://github.com/e0ipso/ai-task-manager"
+    package:
+      name: "@e0ipso/ai-task-manager"
+      type: "npx"
+      install-command: "npx @e0ipso/ai-task-manager init --assistants {tool}"
+      version-command: "npx @e0ipso/ai-task-manager init --version"
+    required: false
+    prompt: "Would you like to set up AI Task Manager?"
+
+  # AI tool wrapper files (source files, target locations vary by tool)
+  wrapper:
+    name: "AI Tool Wrapper"
+    description: "Create AI tool wrapper file"
+    type: "copy-files"
+    source: "assets/wrappers/"
+    required: false
+    prompt: "Would you like to create an AI tool wrapper file?"
+
+# =============================================================================
+# TOOLS CONFIGURATION
+# =============================================================================
+# Tool-specific task configurations. Each tool can reference shared tasks
+# directly or extend them with tool-specific overrides.
+
 tools:
   claude:
     name: "Claude Code"
     tasks:
-      rules:
-        name: "Project Rules from Prompt Library"
-        description: "Copy project-specific rules from Lullabot prompt library"
-        type: "remote-copy-files"
-        link: "https://github.com/Lullabot/prompt_library"
-        repository:
-          url: "https://github.com/Lullabot/prompt_library"
-          type: "branch"
-          target: "main"
-        source: "{project-type}/rules/"
-        target: ".ai/rules"
-        required: false
-        requires-project: true
-        prompt: "Would you like to install project-specific rules from the prompt library?"
-      ai-task-manager:
-        name: "AI Task Manager"
-        description: "Set up AI Task Manager"
-        type: "package-install"
-        link: "https://github.com/e0ipso/ai-task-manager"
-        package:
-          name: "@e0ipso/ai-task-manager"
-          type: "npx"
-          install-command: "npx @e0ipso/ai-task-manager init --assistants claude"
-          version-command: "npx @e0ipso/ai-task-manager init --version"
-        required: false
-        prompt: "Would you like to set up AI Task Manager?"
+      rules: "@shared_tasks.rules"
+      ai-task-manager: "@shared_tasks.ai-task-manager"
       agents-md:
-        name: "AGENTS.md"
-        description: "Create/update AGENTS.md with project-specific rules"
-        type: "agents-md"
-        source: "assets/AGENTS.md"
-        target: "."
+        extends: "@shared_tasks.agents-md"
         link-type: "@"
-        required: false
-        prompt: "Would you like to set up AGENTS.md with project-specific rules?"
       wrapper:
-        name: "CLAUDE.md Wrapper"
-        description: "Create claude.md wrapper file"
-        type: "copy-files"
-        source: "assets/wrappers/"
+        extends: "@shared_tasks.wrapper"
         items: { "claude.md": "CLAUDE.md" }
         target: "."
-        required: false
-        prompt: "Would you like to create a CLAUDE.md wrapper file?"
+
   cursor:
     name: "Cursor"
     tasks:
+      # Cursor-specific memory bank setup
       memory-bank:
         name: "Memory Bank Setup"
         description: "Initialize cursor-bank for AI assistance"
@@ -61,20 +97,11 @@ tools:
           version-command: "npx cursor-bank --version"
         required: false
         prompt: "Would you like to set up a memory bank for AI assistance?"
-      rules:
-        name: "Project Rules from Prompt Library"
-        description: "Copy project-specific rules from Lullabot prompt library"
-        type: "remote-copy-files"
-        link: "https://github.com/Lullabot/prompt_library"
-        repository:
-          url: "https://github.com/Lullabot/prompt_library"
-          type: "branch"
-          target: "main"
-        source: "{project-type}/rules/"
-        target: ".ai/rules"
-        required: false
-        requires-project: true
-        prompt: "Would you like to install project-specific rules from the prompt library?"
+
+      # Shared rules
+      rules: "@shared_tasks.rules"
+
+      # Drupal rules
       drupal-rules:
         name: "Drupal Rules"
         description: "Copy Drupal rules from ivangrynenko/cursorrules"
@@ -92,106 +119,44 @@ tools:
         projects: ["development"]
         required: false
         prompt: "Would you like to install Drupal rules from ivangrynenko/cursorrules?"
+
+      # AGENTS.md file generation with project-specific rules
       agents-md:
-        name: "AGENTS.md"
-        description: "Create/update AGENTS.md with project-specific rules"
-        type: "agents-md"
-        source: "assets/AGENTS.md"
-        target: "."
+        extends: "@shared_tasks.agents-md"
         link-type: "@"
-        required: false
-        prompt: "Would you like to set up AGENTS.md with project-specific rules?"
+
+      # VSCode XDebug configuration
       vscode-xdebug:
         name: "VSCode XDebug"
         description: "Set up VSCode XDebug for PHP debugging"
         type: "copy-files"
         source: "assets/vscode"
-        # Optional: specify individual files/directories to copy
         items: ["launch.json"]
         target: ".vscode/"
         required: false
         prompt: "Would you like to set up VSCode XDebug for PHP debugging?"
+
   gemini:
     name: "Gemini"
     tasks:
-      rules:
-        name: "Project Rules from Prompt Library"
-        description: "Copy project-specific rules from Lullabot prompt library"
-        type: "remote-copy-files"
-        link: "https://github.com/Lullabot/prompt_library"
-        repository:
-          url: "https://github.com/Lullabot/prompt_library"
-          type: "branch"
-          target: "main"
-        source: "{project-type}/rules/"
-        target: ".ai/rules"
-        required: false
-        requires-project: true
-        prompt: "Would you like to install project-specific rules from the prompt library?"
-      ai-task-manager:
-        name: "AI Task Manager"
-        description: "Set up AI Task Manager"
-        type: "package-install"
-        link: "https://github.com/e0ipso/ai-task-manager"
-        package:
-          name: "@e0ipso/ai-task-manager"
-          type: "npx"
-          install-command: "npx @e0ipso/ai-task-manager init --assistants gemini"
-          version-command: "npx @e0ipso/ai-task-manager init --version"
-        required: false
-        prompt: "Would you like to set up AI Task Manager?"
-      agents-md:
-        name: "AGENTS.md"
-        description: "Create/update AGENTS.md with project-specific rules"
-        type: "agents-md"
-        source: "assets/AGENTS.md"
-        target: "."
-        link-type: "markdown"
-        required: false
-        prompt: "Would you like to set up AGENTS.md with project-specific rules?"
+      rules: "@shared_tasks.rules"
+      ai-task-manager: "@shared_tasks.ai-task-manager"
+      agents-md: "@shared_tasks.agents-md"
       wrapper:
-        name: "Gemini Wrapper"
-        description: "Create Gemini wrapper file"
-        type: "copy-files"
-        source: "assets/wrappers/"
+        extends: "@shared_tasks.wrapper"
         items: { "gemini.md": "GEMINI.md" }
         target: "."
-        required: false
-        prompt: "Would you like to create a Gemini wrapper file?"
+
   github-copilot:
     name: "GitHub Copilot"
     tasks:
-      rules:
-        name: "Project Rules from Prompt Library"
-        description: "Copy project-specific rules from Lullabot prompt library"
-        type: "remote-copy-files"
-        repository:
-          url: "https://github.com/Lullabot/prompt_library"
-          type: "branch"
-          target: "main"
-        source: "{project-type}/rules/"
-        target: ".ai/rules"
-        required: false
-        requires-project: true
-        prompt: "Would you like to install project-specific rules from the prompt library?"
-      agents-md:
-        name: "AGENTS.md"
-        description: "Create/update AGENTS.md with project-specific rules"
-        type: "agents-md"
-        source: "assets/AGENTS.md"
-        target: "."
-        link-type: "markdown"
-        required: false
-        prompt: "Would you like to set up AGENTS.md with project-specific rules?"
+      rules: "@shared_tasks.rules"
+      agents-md: "@shared_tasks.agents-md"
       wrapper:
-        name: "GitHub Copilot Wrapper"
-        description: "Create GitHub Copilot wrapper file"
-        type: "copy-files"
-        source: "assets/wrappers/"
+        extends: "@shared_tasks.wrapper"
         items: { "github-copilot.md": "copilot-instructions.md" }
         target: ".github/"
-        required: false
-        prompt: "Would you like to create a GitHub Copilot wrapper file?"
+
   vscode:
     name: "VSCode"
     tasks:
@@ -200,46 +165,28 @@ tools:
         description: "Set up VSCode XDebug for PHP debugging"
         type: "copy-files"
         source: "assets/vscode"
-        # Optional: specify individual files/directories to copy
         items: ["launch.json"]
         target: ".vscode/"
         required: false
         prompt: "Would you like to set up VSCode XDebug for PHP debugging?"
+
   windsurf:
     name: "Windsurf"
     tasks:
-      rules:
-        name: "Project Rules from Prompt Library"
-        description: "Copy project-specific rules from Lullabot prompt library"
-        type: "remote-copy-files"
-        repository:
-          url: "https://github.com/Lullabot/prompt_library"
-          type: "branch"
-          target: "main"
-        source: "{project-type}/rules/"
-        target: ".ai/rules"
-        required: false
-        requires-project: true
-        prompt: "Would you like to install project-specific rules from the prompt library?"
-      agents-md:
-        name: "AGENTS.md"
-        description: "Create/update AGENTS.md with project-specific rules"
-        type: "agents-md"
-        source: "assets/AGENTS.md"
-        target: "."
-        link-type: "markdown"
-        required: false
-        prompt: "Would you like to set up AGENTS.md with project-specific rules?"
+      rules: "@shared_tasks.rules"
+      agents-md: "@shared_tasks.agents-md"
       wrapper:
-        name: "Windsurf Wrapper"
-        description: "Create Windsurf wrapper file"
-        type: "copy-files"
-        source: "assets/wrappers/"
+        extends: "@shared_tasks.wrapper"
         items: { "windsurf.md": "agents.md" }
         target: ".windsurf/rules/"
-        required: false
-        prompt: "Would you like to create a Windsurf wrapper file?"
+
+# =============================================================================
+# PROJECT TYPES
+# =============================================================================
+# Project type definitions with validation rules and requirements.
+
 projects:
+  # Drupal development projects
   development:
     name: "Development"
     validation:
@@ -252,13 +199,23 @@ projects:
         - "README.md"
         - "package.json"
         - "web/sites/default/settings.php"
+
+  # Content strategy projects
   content-strategy:
     name: "Content Strategy"
+
+  # Design projects
   design:
     name: "Design"
+
+  # Project management projects
   project-management:
     name: "Project Management"
+
+  # Quality assurance projects
   quality-assurance:
     name: "Quality Assurance"
+
+  # Sales and marketing projects
   sales-marketing:
     name: "Sales and Marketing"
