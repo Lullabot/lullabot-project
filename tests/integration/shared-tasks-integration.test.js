@@ -38,9 +38,8 @@ describe('Shared Tasks Integration', () => {
       const tasks = getTasks('claude', 'development', config);
 
       expect(tasks.rules).toBeDefined();
-      expect(tasks.rules.name).toBe('Project Rules from Prompt Library');
-      expect(tasks.rules.type).toBe('remote-copy-files');
-      expect(tasks.rules.link).toBe('https://github.com/Lullabot/prompt_library');
+      expect(tasks.rules.name).toBe('Rules and AGENTS.md setup');
+      expect(tasks.rules.type).toBe('multi-step');
       expect(tasks.rules.id).toBe('rules');
       expect(tasks.rules.taskSource).toBe('tool');
     });
@@ -48,12 +47,12 @@ describe('Shared Tasks Integration', () => {
     it('should resolve extends with overrides for claude tool', () => {
       const tasks = getTasks('claude', 'development', config);
 
-      expect(tasks['agents-md']).toBeDefined();
-      expect(tasks['agents-md'].name).toBe('AGENTS.md');
-      expect(tasks['agents-md'].type).toBe('agents-md');
-      expect(tasks['agents-md']['link-type']).toBe('@'); // Override applied
-      expect(tasks['agents-md'].id).toBe('agents-md');
-      expect(tasks['agents-md'].taskSource).toBe('tool');
+      expect(tasks.wrapper).toBeDefined();
+      expect(tasks.wrapper.name).toBe('AI Tool Wrapper');
+      expect(tasks.wrapper.type).toBe('copy-files');
+      expect(tasks.wrapper.items).toEqual({ "claude.md": "CLAUDE.md" }); // Override applied
+      expect(tasks.wrapper.id).toBe('wrapper');
+      expect(tasks.wrapper.taskSource).toBe('tool');
     });
 
     it('should resolve shared task references for cursor tool', () => {
@@ -81,8 +80,8 @@ describe('Shared Tasks Integration', () => {
       const tasks = getTasks('gemini', 'development', config);
 
       expect(tasks.rules).toBeDefined();
-      expect(tasks.rules.name).toBe('Project Rules from Prompt Library');
-      expect(tasks.rules.type).toBe('remote-copy-files');
+      expect(tasks.rules.name).toBe('Rules and AGENTS.md setup');
+      expect(tasks.rules.type).toBe('multi-step');
       expect(tasks.rules.id).toBe('rules');
       expect(tasks.rules.taskSource).toBe('tool');
     });
@@ -90,20 +89,20 @@ describe('Shared Tasks Integration', () => {
     it('should resolve shared task references for gemini tool (no overrides)', () => {
       const tasks = getTasks('gemini', 'development', config);
 
-      expect(tasks['agents-md']).toBeDefined();
-      expect(tasks['agents-md'].name).toBe('AGENTS.md');
-      expect(tasks['agents-md'].type).toBe('agents-md');
-      expect(tasks['agents-md']['link-type']).toBe('markdown'); // Default value
-      expect(tasks['agents-md'].id).toBe('agents-md');
-      expect(tasks['agents-md'].taskSource).toBe('tool');
+      expect(tasks.wrapper).toBeDefined();
+      expect(tasks.wrapper.name).toBe('AI Tool Wrapper');
+      expect(tasks.wrapper.type).toBe('copy-files');
+      expect(tasks.wrapper.items).toEqual({ "gemini.md": "GEMINI.md" }); // Override applied
+      expect(tasks.wrapper.id).toBe('wrapper');
+      expect(tasks.wrapper.taskSource).toBe('tool');
     });
 
     it('should resolve shared task references for github-copilot tool', () => {
       const tasks = getTasks('github-copilot', 'development', config);
 
       expect(tasks.rules).toBeDefined();
-      expect(tasks.rules.name).toBe('Project Rules from Prompt Library');
-      expect(tasks.rules.type).toBe('remote-copy-files');
+      expect(tasks.rules.name).toBe('Rules and AGENTS.md setup');
+      expect(tasks.rules.type).toBe('multi-step');
       expect(tasks.rules.id).toBe('rules');
       expect(tasks.rules.taskSource).toBe('tool');
     });
@@ -112,8 +111,8 @@ describe('Shared Tasks Integration', () => {
       const tasks = getTasks('windsurf', 'development', config);
 
       expect(tasks.rules).toBeDefined();
-      expect(tasks.rules.name).toBe('Project Rules from Prompt Library');
-      expect(tasks.rules.type).toBe('remote-copy-files');
+      expect(tasks.rules.name).toBe('Rules and AGENTS.md setup');
+      expect(tasks.rules.type).toBe('multi-step');
       expect(tasks.rules.id).toBe('rules');
       expect(tasks.rules.taskSource).toBe('tool');
     });
@@ -124,38 +123,44 @@ describe('Shared Tasks Integration', () => {
       const tools = ['claude', 'cursor', 'gemini', 'github-copilot', 'windsurf'];
       const rulesTasks = tools.map(tool => getTasks(tool, 'development', config).rules);
 
-      // All rules tasks should have the same core properties
+      // Check that all tools have a rules task
       rulesTasks.forEach(task => {
-        expect(task.name).toBe('Project Rules from Prompt Library');
-        expect(task.type).toBe('remote-copy-files');
-        expect(task.link).toBe('https://github.com/Lullabot/prompt_library');
-        expect(task.source).toBe('development/rules/'); // Variable should be substituted
-        expect(task.target).toBe('.ai/rules');
-        expect(task['requires-project']).toBe(true);
+        expect(task).toBeDefined();
+        expect(task.id).toBe('rules');
+        expect(task.taskSource).toBe('tool');
+      });
+
+      // Check that cursor has individual rules task
+      const cursorRules = getTasks('cursor', 'development', config).rules;
+      expect(cursorRules.name).toBe('Project Rules from Prompt Library');
+      expect(cursorRules.type).toBe('remote-copy-files');
+
+      // Check that other tools have multi-step rules task
+      const multiStepTools = ['claude', 'gemini', 'github-copilot', 'windsurf'];
+      multiStepTools.forEach(tool => {
+        const task = getTasks(tool, 'development', config).rules;
+        expect(task.name).toBe('Rules and AGENTS.md setup');
+        expect(task.type).toBe('multi-step');
       });
     });
 
     it('should have consistent agents-md task across all tools (with proper overrides)', () => {
-      const tools = ['claude', 'cursor', 'gemini', 'github-copilot', 'windsurf'];
-      const agentsTasks = tools.map(tool => getTasks(tool, 'development', config)['agents-md']);
+      // Only cursor has individual agents-md task
+      const cursorTasks = getTasks('cursor', 'development', config);
+      expect(cursorTasks['agents-md']).toBeDefined();
+      expect(cursorTasks['agents-md'].name).toBe('AGENTS.md');
+      expect(cursorTasks['agents-md'].type).toBe('agents-md');
+      expect(cursorTasks['agents-md'].source).toBe('assets/AGENTS.md');
+      expect(cursorTasks['agents-md'].target).toBe('.');
+      expect(cursorTasks['agents-md'].required).toBe(false);
+      expect(cursorTasks['agents-md']['link-type']).toBe('@'); // Override applied
 
-      // All agents-md tasks should have the same core properties
-      agentsTasks.forEach(task => {
-        expect(task.name).toBe('AGENTS.md');
-        expect(task.type).toBe('agents-md');
-        expect(task.source).toBe('assets/AGENTS.md');
-        expect(task.target).toBe('.');
-        expect(task.required).toBe(false);
+      // Other tools don't have individual agents-md tasks (they're part of multi-step)
+      const toolsWithoutIndividualAgents = ['claude', 'gemini', 'github-copilot', 'windsurf'];
+      toolsWithoutIndividualAgents.forEach(tool => {
+        const tasks = getTasks(tool, 'development', config);
+        expect(tasks['agents-md']).toBeUndefined();
       });
-
-      // Check specific overrides
-      const claudeTask = getTasks('claude', 'development', config)['agents-md'];
-      const cursorTask = getTasks('cursor', 'development', config)['agents-md'];
-      const geminiTask = getTasks('gemini', 'development', config)['agents-md'];
-
-      expect(claudeTask['link-type']).toBe('@');
-      expect(cursorTask['link-type']).toBe('@');
-      expect(geminiTask['link-type']).toBe('markdown');
     });
   });
 
@@ -165,7 +170,7 @@ describe('Shared Tasks Integration', () => {
 
       // Should have shared tasks
       expect(claudeTasks.rules).toBeDefined();
-      expect(claudeTasks['agents-md']).toBeDefined();
+      // Note: claude doesn't have individual agents-md task (it's part of multi-step rules)
 
       // Should have tool-specific tasks
       expect(claudeTasks.wrapper).toBeDefined();

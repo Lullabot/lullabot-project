@@ -52,8 +52,9 @@ describe('Pattern-based File Copying Integration', () => {
 
       const result = await copyFilesExecute(task, 'test-tool', 'test-project', true);
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
+      expect(result.files.length).toBeGreaterThan(0);
 
       // Check that files were copied
       expect(await fs.pathExists(path.join(targetDir, 'README.md'))).toBe(true);
@@ -72,8 +73,9 @@ describe('Pattern-based File Copying Integration', () => {
 
       const result = await copyFilesExecute(task, 'test-tool', 'test-project', true);
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
+      expect(result.files.length).toBeGreaterThan(0);
 
       // Check that files were copied
       expect(await fs.pathExists(path.join(targetDir, 'config.json'))).toBe(true);
@@ -93,8 +95,9 @@ describe('Pattern-based File Copying Integration', () => {
 
       const result = await copyFilesExecute(task, 'test-tool', 'test-project', true);
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
+      expect(result.files.length).toBeGreaterThan(0);
 
       // Check that files were copied
       expect(await fs.pathExists(path.join(targetDir, 'README.md'))).toBe(true);
@@ -114,8 +117,9 @@ describe('Pattern-based File Copying Integration', () => {
 
       const result = await copyFilesExecute(task, 'test-tool', 'test-project', true);
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
+      expect(result.files.length).toBeGreaterThan(0);
 
       // Check that files were copied
       expect(await fs.pathExists(path.join(targetDir, 'README.md'))).toBe(true);
@@ -134,8 +138,9 @@ describe('Pattern-based File Copying Integration', () => {
 
       const result = await copyFilesExecute(task, 'test-tool', 'test-project', true);
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBe(0);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
+      expect(result.files.length).toBe(0);
     });
 
     it('should preserve file content when copying', async () => {
@@ -171,8 +176,9 @@ describe('Pattern-based File Copying Integration', () => {
 
       const result = await remoteCopyFilesExecute(task, 'test-tool', 'development', true);
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
+      expect(result.files.length).toBeGreaterThan(0);
 
       // Check that .md files were copied
       const files = await fs.readdir(targetDir);
@@ -195,8 +201,9 @@ describe('Pattern-based File Copying Integration', () => {
 
       const result = await remoteCopyFilesExecute(task, 'test-tool', 'development', true);
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBe(0);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
+      expect(result.files.length).toBe(0);
     });
   });
 
@@ -249,8 +256,9 @@ describe('Pattern-based File Copying Integration', () => {
 
       const result = await copyFilesExecute(task, 'test-tool', 'test-project', true);
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBe(2);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
+      expect(result.files.length).toBe(2);
 
       // Check that specific files were copied
       expect(await fs.pathExists(path.join(targetDir, 'README.md'))).toBe(true);
@@ -268,8 +276,9 @@ describe('Pattern-based File Copying Integration', () => {
 
       const result = await copyFilesExecute(task, 'test-tool', 'test-project', true);
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBe(2);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
+      expect(result.files.length).toBe(2);
 
       // Check that files were copied with new names
       expect(await fs.pathExists(path.join(targetDir, 'DOCS.md'))).toBe(true);
@@ -293,8 +302,9 @@ describe('Pattern-based File Copying Integration', () => {
 
       const result = await remoteCopyFilesExecute(task, 'test-tool', 'development', true);
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
+      expect(result.files.length).toBeGreaterThan(0);
 
       // Check that .md files were copied (default behavior)
       const files = await fs.readdir(targetDir);

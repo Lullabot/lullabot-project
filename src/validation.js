@@ -157,13 +157,97 @@ async function validateFileContent(
 }
 
 /**
- * Validate task configuration for copy-files and remote-copy-files tasks.
+ * Validate multi-step task configuration.
+ * Checks for valid steps array and proper configuration.
+ *
+ * @param {Object} task - Multi-step task configuration object
+ * @throws {Error} If multi-step task configuration is invalid
+ */
+function validateMultiStepTask(task) {
+  if (!task.steps) {
+    throw new Error('Multi-step task must have a steps array');
+  }
+
+  if (!Array.isArray(task.steps)) {
+    throw new Error('Multi-step task steps must be an array');
+  }
+
+  // Validate each step
+  for (let i = 0; i < task.steps.length; i++) {
+    const step = task.steps[i];
+
+    if (typeof step !== 'object' || step === null) {
+      throw new Error(`Step ${i + 1} must be an object`);
+    }
+
+    const stepKeys = Object.keys(step);
+    if (stepKeys.length !== 1) {
+      throw new Error(`Step ${i + 1} must have exactly one key (step name)`);
+    }
+
+    const stepName = stepKeys[0];
+    const stepConfig = step[stepName];
+
+    // Validate step name
+    if (typeof stepName !== 'string' || stepName.trim() === '') {
+      throw new Error(`Step ${i + 1} name must be a non-empty string`);
+    }
+
+    // Validate step configuration
+    if (typeof stepConfig === 'string') {
+      // Direct shared task reference
+      if (!stepConfig.startsWith('@shared_tasks.')) {
+        throw new Error(
+          `Step ${i + 1} (${stepName}): Invalid shared task reference format`
+        );
+      }
+    } else if (typeof stepConfig === 'object' && stepConfig !== null) {
+      // Inline task definition or extends
+      if (stepConfig.extends) {
+        if (
+          typeof stepConfig.extends !== 'string' ||
+          !stepConfig.extends.startsWith('@shared_tasks.')
+        ) {
+          throw new Error(
+            `Step ${i + 1} (${stepName}): Invalid extends reference format`
+          );
+        }
+      } else if (!stepConfig.type) {
+        throw new Error(
+          `Step ${i + 1} (${stepName}): Must have a type or extends property`
+        );
+      }
+    } else {
+      throw new Error(
+        `Step ${i + 1} (${stepName}): Must be a string (shared task reference) or object (inline task or extends)`
+      );
+    }
+  }
+
+  // Validate fail-fast if present
+  if (
+    task['fail-fast'] !== undefined &&
+    typeof task['fail-fast'] !== 'boolean'
+  ) {
+    throw new Error('Multi-step task fail-fast must be a boolean');
+  }
+}
+
+/**
+ * Validate task configuration for copy-files, remote-copy-files, and multi-step tasks.
  * Checks for valid patterns and proper configuration.
  *
  * @param {Object} task - Task configuration object
  * @throws {Error} If task configuration is invalid
  */
 function validateTaskConfig(task) {
+  // Validate multi-step tasks
+  if (task.type === 'multi-step') {
+    validateMultiStepTask(task);
+    return;
+  }
+
+  // Validate copy-files and remote-copy-files tasks
   if (task.type === 'copy-files' || task.type === 'remote-copy-files') {
     if (task.items) {
       if (Array.isArray(task.items)) {
@@ -402,6 +486,7 @@ export {
   validateDirectoryWritable,
   validateFileContent,
   validateTaskConfig,
+  validateMultiStepTask,
   validateUrl,
   validateTaskConfigWithLinks,
   validateSharedTasks,

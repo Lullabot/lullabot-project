@@ -229,25 +229,31 @@ async function execute(
   if (source.startsWith('assets/')) {
     // Use Git for files from the repository
     const items = task.items || null;
-    const result = await copyFilesFromGit(
+    const trackedFiles = await copyFilesFromGit(
       source,
       target,
       verbose,
       items,
       dependencies
     );
-    return result;
+    return {
+      output: `Successfully copied ${trackedFiles.length} files from Git repository`,
+      files: trackedFiles
+    };
   } else {
     // Use local file system for other files
     const items = task.items || null;
-    const result = await copyFiles(
+    const trackedFiles = await copyFiles(
       source,
       target,
       verbose,
       items,
       dependencies
     );
-    return result;
+    return {
+      output: `Successfully copied ${trackedFiles.length} files from local filesystem`,
+      files: trackedFiles
+    };
   }
 }
 

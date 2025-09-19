@@ -2,6 +2,7 @@ import { execute as copyFilesExecute } from './copy-files.js';
 import { execute as packageInstallExecute } from './package-install.js';
 import { execute as agentsMdExecute } from './agents-md.js';
 import { execute as remoteCopyFilesExecute } from './remote-copy-files.js';
+import { execute as multiStepExecute } from './multi-step.js';
 
 /**
  * Registry of available task types.
@@ -13,7 +14,8 @@ const taskTypes = {
   'copy-files': { execute: copyFilesExecute },
   'package-install': { execute: packageInstallExecute },
   'agents-md': { execute: agentsMdExecute },
-  'remote-copy-files': { execute: remoteCopyFilesExecute }
+  'remote-copy-files': { execute: remoteCopyFilesExecute },
+  'multi-step': { execute: multiStepExecute }
 };
 
 /**

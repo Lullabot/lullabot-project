@@ -35,7 +35,7 @@ async function execute(
 
   try {
     // Copy files from remote repository with smart filtering
-    const result = await copyFilesFromRemote(
+    const trackedFiles = await copyFilesFromRemote(
       tempDir,
       remoteSource,
       target,
@@ -43,7 +43,11 @@ async function execute(
       dependencies,
       items
     );
-    return result;
+
+    return {
+      output: `Successfully copied ${trackedFiles.length} files from remote repository`,
+      files: trackedFiles
+    };
   } finally {
     // Cleanup handled at the end of all tasks
   }
