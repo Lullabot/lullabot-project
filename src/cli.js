@@ -286,7 +286,8 @@ async function executeEnabledTasks(
             ...config,
             files: accumulatedFiles // Pass accumulated files to tasks
           },
-          projectRoot: process.cwd()
+          projectRoot: process.cwd(),
+          sharedTasks: fullConfig.shared_tasks // Pass shared tasks for multi-step tasks
         };
 
         const result = await executeTask(
@@ -299,10 +300,14 @@ async function executeEnabledTasks(
 
         // Accumulate files from this task's result
         if (
-          (task.type === 'copy-files' || task.type === 'remote-copy-files') &&
-          Array.isArray(result)
+          (task.type === 'copy-files' ||
+            task.type === 'remote-copy-files' ||
+            task.type === 'multi-step') &&
+          result &&
+          result.files &&
+          Array.isArray(result.files)
         ) {
-          accumulatedFiles.push(...result);
+          accumulatedFiles.push(...result.files);
         } else if (
           task.type === 'agents-md' &&
           result &&
@@ -537,7 +542,8 @@ async function performUpdate(currentConfig, fullConfig, options, dependencies) {
             ...currentConfig,
             files: accumulatedFiles // Pass accumulated files to tasks
           },
-          projectRoot: process.cwd()
+          projectRoot: process.cwd(),
+          sharedTasks: fullConfig.shared_tasks // Pass shared tasks for multi-step tasks
         };
 
         const result = await executeTask(
@@ -550,10 +556,14 @@ async function performUpdate(currentConfig, fullConfig, options, dependencies) {
 
         // Accumulate files from this task's result
         if (
-          (task.type === 'copy-files' || task.type === 'remote-copy-files') &&
-          Array.isArray(result)
+          (task.type === 'copy-files' ||
+            task.type === 'remote-copy-files' ||
+            task.type === 'multi-step') &&
+          result &&
+          result.files &&
+          Array.isArray(result.files)
         ) {
-          accumulatedFiles.push(...result);
+          accumulatedFiles.push(...result.files);
         } else if (
           task.type === 'agents-md' &&
           result &&

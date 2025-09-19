@@ -43,7 +43,8 @@ describe('Remote Copy Files - Integration Tests', () => {
 
       // Verify that files were copied
       expect(result).toBeDefined();
-      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
 
       // Check that the target directory was created
       expect(await fs.pathExists('.ai/rules')).toBe(true);
@@ -80,7 +81,8 @@ describe('Remote Copy Files - Integration Tests', () => {
 
         // Verify that the operation completed (may be empty if no rules exist for that type)
         expect(result).toBeDefined();
-        expect(Array.isArray(result)).toBe(true);
+        expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
       }
     }, 120000); // 2 minute timeout for multiple operations
 
@@ -106,7 +108,8 @@ describe('Remote Copy Files - Integration Tests', () => {
 
       // Verify that the operation completed
       expect(result).toBeDefined();
-      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
 
       // The result may be empty if the specified files don't exist, which is expected
     }, 60000);
@@ -136,7 +139,8 @@ describe('Remote Copy Files - Integration Tests', () => {
 
       // Verify that the operation completed
       expect(result).toBeDefined();
-      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
     }, 60000);
 
     it('should handle repository validation failure gracefully', async () => {
@@ -241,7 +245,8 @@ describe('Remote Copy Files - Integration Tests', () => {
 
       // Verify that the operation completed
       expect(result).toBeDefined();
-      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
 
       // If files were copied, verify they exist
       if (result.length > 0) {
@@ -281,7 +286,8 @@ describe('Remote Copy Files - Integration Tests', () => {
       expect(results).toHaveLength(3);
       results.forEach(result => {
         expect(result).toBeDefined();
-        expect(Array.isArray(result)).toBe(true);
+        expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
       });
     }, 90000); // 90 second timeout for concurrent operations
   });

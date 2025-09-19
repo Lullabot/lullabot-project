@@ -155,8 +155,9 @@ describe('File Operations Module - Comprehensive', () => {
       try {
         const result = await fileOperations.executeTask(task, 'cursor', 'development', true);
 
-        expect(Array.isArray(result)).toBe(true);
-        expect(result.length).toBeGreaterThan(0);
+        expect(result).toHaveProperty('files');
+        expect(Array.isArray(result.files)).toBe(true);
+        expect(result.files.length).toBeGreaterThan(0);
       } finally {
         // Clean up
         await fs.remove(sourceDir);
@@ -239,7 +240,8 @@ describe('File Operations Module - Comprehensive', () => {
       process.chdir(testDir);
       const result = await fileOperations.executeTask(task, 'cursor', 'development', true);
 
-      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveProperty('files');
+      expect(Array.isArray(result.files)).toBe(true);
     });
   });
 

@@ -34,7 +34,7 @@ shared_tasks:
     type: "agents-md"
     source: "assets/AGENTS.md"
     target: "."
-    link-type: "markdown"
+    link-type: "@"
     required: false
     prompt: "Would you like to set up AGENTS.md with project-specific rules?"
 
@@ -61,6 +61,18 @@ shared_tasks:
     required: false
     prompt: "Would you like to create an AI tool wrapper file?"
 
+  # Rules and AGENTS.md setup
+  rules-and-agents-md:
+    name: "Rules and AGENTS.md setup"
+    description: "Set up rules and the AGENTS.md file"
+    type: "multi-step"
+    fail-fast: false
+    steps:
+      - rules: "@shared_tasks.rules"
+      - agents-md: "@shared_tasks.agents-md"
+    required: false
+    prompt: "Would you like to install project-specific rules from the prompt library and an AGENTS.md file?"
+
 # =============================================================================
 # TOOLS CONFIGURATION
 # =============================================================================
@@ -71,11 +83,8 @@ tools:
   claude:
     name: "Claude Code"
     tasks:
-      rules: "@shared_tasks.rules"
+      rules: "@shared_tasks.rules-and-agents-md"
       ai-task-manager: "@shared_tasks.ai-task-manager"
-      agents-md:
-        extends: "@shared_tasks.agents-md"
-        link-type: "@"
       wrapper:
         extends: "@shared_tasks.wrapper"
         items: { "claude.md": "CLAUDE.md" }
@@ -139,9 +148,8 @@ tools:
   gemini:
     name: "Gemini"
     tasks:
-      rules: "@shared_tasks.rules"
+      rules: "@shared_tasks.rules-and-agents-md"
       ai-task-manager: "@shared_tasks.ai-task-manager"
-      agents-md: "@shared_tasks.agents-md"
       wrapper:
         extends: "@shared_tasks.wrapper"
         items: { "gemini.md": "GEMINI.md" }
@@ -150,8 +158,7 @@ tools:
   github-copilot:
     name: "GitHub Copilot"
     tasks:
-      rules: "@shared_tasks.rules"
-      agents-md: "@shared_tasks.agents-md"
+      rules: "@shared_tasks.rules-and-agents-md"
       wrapper:
         extends: "@shared_tasks.wrapper"
         items: { "github-copilot.md": "copilot-instructions.md" }
@@ -173,8 +180,7 @@ tools:
   windsurf:
     name: "Windsurf"
     tasks:
-      rules: "@shared_tasks.rules"
-      agents-md: "@shared_tasks.agents-md"
+      rules: "@shared_tasks.rules-and-agents-md"
       wrapper:
         extends: "@shared_tasks.wrapper"
         items: { "windsurf.md": "agents.md" }
