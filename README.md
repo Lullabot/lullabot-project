@@ -18,6 +18,12 @@ A CLI tool that helps developers set up their development environment with AI to
 - **Git-Based File Access**: Pull latest rules and configurations from the repository
 - **Version-Pinned Operations**: Automatically uses Git tags matching the tool version for consistency
 - **Flexible Task System**: Dynamic task execution with package installation, file copying, and command execution
+- **Multi-Step Tasks**: Execute sequences of tasks with shared context and error handling
+- **Shared Task System**: Define common tasks once and reference them across multiple tools
+- **Variable Substitution**: Dynamic configuration with `{tool}` and `{project-type}` variables
+- **Task Links**: Clickable links in prompts for additional context and resources
+- **Pattern-Based File Selection**: Advanced glob and regex patterns for flexible file copying
+- **Project-Specific Task Filtering**: Show only relevant tasks based on selected project type
 - **Interactive Setup**: Guided setup process with clear prompts
 - **Update Management**: Easy updates to existing configurations
 - **Extensible**: Easy to add new tools and project types
@@ -471,28 +477,24 @@ tools:
   newtool:
     name: "New Tool"
     tasks:
-      rules:
-        name: "Project Rules"
-        type: "copy-files"
-        source: "assets/rules/{project-type}/"
-        target: ".ai/rules"
-        required: false
-        prompt: "Would you like to install project-specific rules and guidelines?"
+      rules: "@shared_tasks.rules"  # Use shared task
       agents-md:
-        name: "AGENTS.md"
-        type: "agents-md"
-        source: "assets/AGENTS.md"
-        target: "."
-        link-type: "markdown"  # or "@"
-        required: false
-        prompt: "Would you like to set up AGENTS.md with project-specific rules?"
+        extends: "@shared_tasks.agents-md"
+        link-type: "markdown"  # Override for this tool
       wrapper:
-        name: "newtool.md Wrapper"
-        type: "copy-files"
-        source: "assets/wrappers/"
-        items: ["newtool.md"]
+        extends: "@shared_tasks.wrapper"
+        items: { "newtool.md": "NEWTOOL.md" }
+        target: "."
+      # Or define custom tasks
+      custom-setup:
+        name: "Custom Setup"
+        type: "package-install"
+        package:
+          name: "newtool-cli"
+          type: "npx"
+          install-command: "npx newtool-cli init"
         required: false
-        prompt: "Would you like to create a wrapper file for New Tool?"
+        prompt: "Would you like to set up New Tool CLI?"
 ```
 
 ## Task System
@@ -684,6 +686,70 @@ rules:
 - `target`: Target directory (usually "." for project root)
 - `link-type`: Link format for file references ("@" or "markdown")
 
+#### `multi-step` - Execute Multiple Tasks Sequentially
+
+Execute a sequence of tasks in order with shared context and error handling:
+
+```yaml
+rules-and-agents-md:
+  name: "Rules and AGENTS.md setup"
+  description: "Set up rules and the AGENTS.md file"
+  type: "multi-step"
+  fail-fast: false
+  steps:
+    - rules: "@shared_tasks.rules"
+    - agents-md: "@shared_tasks.agents-md"
+  required: false
+  prompt: "Would you like to install project-specific rules from the prompt library and an AGENTS.md file?"
+```
+
+**Configuration:**
+- `steps`: Array of step definitions, each with a name and task configuration
+- `fail-fast`: Boolean (default: true) - whether to stop on first error or continue executing all steps
+- `name`: Human-readable task name
+- `description`: Detailed task description
+- `required`: Whether the task is required
+- `prompt`: User prompt for the task
+
+**Step Types:**
+- **Shared Task Reference**: `"@shared_tasks.taskname"` - Reference a shared task
+- **Inline Task Definition**: Object with `type` and task-specific properties
+- **Extends with Overrides**: Object with `extends` property to inherit and override
+
+**Features:**
+- **Sequential Execution**: Steps run in order, with each step receiving accumulated context
+- **File Passing**: Files created by earlier steps are available to later steps
+- **Error Handling**: Configurable `fail-fast` behavior (stop on first error or continue)
+- **Shared Context**: All steps share the same dependencies and configuration
+- **Mixed Step Types**: Combine inline task definitions, shared task references, and extends
+- **Verbose Output**: Detailed step-by-step results in verbose mode
+
+**Example with Mixed Step Types:**
+```yaml
+cursor-dev-setup:
+  name: "Complete Cursor Development Setup"
+  type: "multi-step"
+  fail-fast: false
+  steps:
+    - memory-bank:
+        type: "package-install"
+        package:
+          name: "cursor-bank"
+          type: "npx"
+          install-command: "npx cursor-bank init"
+    - rules: "@shared_tasks.rules"
+    - drupal-rules:
+        type: "remote-copy-files"
+        repository:
+          url: "https://github.com/ivangrynenko/cursorrules"
+          type: "branch"
+          target: "main"
+        source: ".cursor/rules/"
+        target: ".ai/rules"
+        items: ["drupal-*.mdc"]
+    - agents-md: "@shared_tasks.agents-md"
+```
+
 #### `command` - Execute Commands
 
 Execute arbitrary shell commands:
@@ -701,7 +767,7 @@ custom-setup:
 
 **Required Fields:**
 - `name`: Human-readable task name
-- `type`: Task type (`package-install`, `copy-files`, `agents-md`, `command`)
+- `type`: Task type (`package-install`, `copy-files`, `agents-md`, `remote-copy-files`, `multi-step`, `command`)
 - `required`: Whether the task is required (true) or optional (false)
 
 **Optional Fields:**
@@ -709,6 +775,9 @@ custom-setup:
 - `prompt`: Custom prompt text for optional tasks
 - `projects`: Array of project types this task applies to (see Project-Specific Tasks below)
 - `link`: URL to learn more about the task (displayed in prompts)
+- `fail-fast`: For multi-step tasks, whether to stop on first error (default: true)
+- `steps`: For multi-step tasks, array of step definitions
+- `extends`: Reference to a shared task to inherit from with overrides
 
 ### Project-Specific Tasks
 
@@ -785,6 +854,14 @@ memory-bank:
   type: "package-install"
   link: "https://cursor.sh/docs/memory-bank"
   # ... rest of config
+
+# Links work in shared tasks too
+shared_tasks:
+  ai-task-manager:
+    name: "AI Task Manager"
+    type: "package-install"
+    link: "https://github.com/e0ipso/ai-task-manager"
+    # ... rest of config
 ```
 
 **Behavior:**
@@ -795,15 +872,39 @@ memory-bank:
 - Falls back gracefully in terminals that don't support clickable links
 - URLs must be valid HTTP/HTTPS links
 - Optional field - tasks work fine without links
+- Available in all task types including multi-step tasks
 
 **Example Prompt:**
 ```
 Would you like to install project-specific rules from the prompt library? (Learn more)
 ```
 
+**Link Features:**
+- **Universal Support**: Works with all task types (package-install, copy-files, remote-copy-files, agents-md, multi-step, command)
+- **Shared Task Support**: Links can be defined in shared tasks and inherited by references
+- **Extends Support**: Links can be overridden when using `extends` syntax
+- **Validation**: URLs are validated to ensure they're proper HTTP/HTTPS links
+- **Terminal Compatibility**: Uses OSC 8 escape sequences for maximum terminal compatibility
+
+**Link Inheritance:**
+```yaml
+shared_tasks:
+  base-task:
+    name: "Base Task"
+    link: "https://example.com/base"
+    # ... other config
+
+tools:
+  claude:
+    tasks:
+      my-task:
+        extends: "@shared_tasks.base-task"
+        link: "https://example.com/claude-specific"  # Override the link
+```
+
 ### Shared Tasks
 
-The tool supports shared task definitions to reduce duplication in the configuration file. This is particularly useful for tasks that are identical across multiple tools.
+The tool supports shared task definitions to reduce duplication in the configuration file. This is particularly useful for tasks that are identical across multiple tools or have minor variations.
 
 **Configuration:**
 ```yaml
@@ -841,17 +942,38 @@ shared_tasks:
     required: false
     prompt: "Would you like to create an AI tool wrapper file?"
 
+  # Multi-step shared task
+  rules-and-agents-md:
+    name: "Rules and AGENTS.md setup"
+    description: "Set up rules and the AGENTS.md file"
+    type: "multi-step"
+    fail-fast: false
+    steps:
+      - rules: "@shared_tasks.rules"
+      - agents-md: "@shared_tasks.agents-md"
+    required: false
+    prompt: "Would you like to install project-specific rules from the prompt library and an AGENTS.md file?"
+
 tools:
   claude:
     name: "Claude Code"
     tasks:
-      rules: "@shared_tasks.rules"
-      agents-md:
-        extends: "@shared_tasks.agents-md"
-        link-type: "@"
+      rules: "@shared_tasks.rules-and-agents-md"  # Uses multi-step task
       wrapper:
         extends: "@shared_tasks.wrapper"
         items: { "claude.md": "CLAUDE.md" }
+        target: "."
+
+  cursor:
+    name: "Cursor"
+    tasks:
+      rules: "@shared_tasks.rules"  # Uses individual task
+      agents-md:
+        extends: "@shared_tasks.agents-md"
+        link-type: "@"  # Override for Cursor
+      wrapper:
+        extends: "@shared_tasks.wrapper"
+        items: { "cursor.md": "CURSOR.md" }
         target: "."
 ```
 
@@ -864,6 +986,27 @@ tools:
 agents-md:
   extends: "@shared_tasks.agents-md"
   link-type: "@"  # Override the default "markdown" value
+```
+
+**Multi-Step Shared Tasks:**
+Shared tasks can also be multi-step tasks, allowing for complex workflows:
+
+```yaml
+shared_tasks:
+  complete-setup:
+    name: "Complete Development Setup"
+    type: "multi-step"
+    fail-fast: false
+    steps:
+      - memory-bank: "@shared_tasks.memory-bank"
+      - rules: "@shared_tasks.rules"
+      - agents-md: "@shared_tasks.agents-md"
+      - wrapper: "@shared_tasks.wrapper"
+
+tools:
+  claude:
+    tasks:
+      setup: "@shared_tasks.complete-setup"
 ```
 
 **Wrapper Task Example:**
@@ -909,11 +1052,14 @@ tools:
 - **Consistent Updates**: Change shared task definition to update all references
 - **Flexible Overrides**: Use `extends` to customize shared tasks per tool
 - **Maintainable**: Easier to maintain and update task configurations
+- **Complex Workflows**: Multi-step shared tasks enable sophisticated setup sequences
+- **Recursive References**: Shared tasks can reference other shared tasks
 
 **Validation:**
 - All shared task references are validated at startup
 - Invalid references cause the tool to fail with clear error messages
 - Extends syntax is validated for proper format
+- Circular references are detected and prevented
 
 ### Variable Substitution
 
@@ -951,8 +1097,9 @@ tools:
 **Variable Features:**
 - **Nested Object Support**: Variables work in nested objects like `package.install-command`
 - **Multiple Variables**: Use multiple variables in the same string
-- **All Task Types**: Available in shared tasks, regular tasks, and extends overrides
+- **All Task Types**: Available in shared tasks, regular tasks, multi-step tasks, and extends overrides
 - **Automatic Substitution**: Variables are substituted when tasks are resolved
+- **Multi-Step Context**: Variables are available in all steps of multi-step tasks
 
 **Examples:**
 ```yaml
@@ -966,12 +1113,33 @@ package:
 # Path variables
 source: "{project-type}/rules/"
 target: ".ai/rules"
+
+# Multi-step task with variables
+complete-setup:
+  type: "multi-step"
+  steps:
+    - setup:
+        type: "package-install"
+        package:
+          install-command: "npx setup-{tool} init"
+    - rules:
+        type: "remote-copy-files"
+        source: "{project-type}/rules/"
+        target: ".ai/rules"
 ```
+
+**Variable Context:**
+- **Tool Context**: `{tool}` is available when a specific tool is selected
+- **Project Context**: `{project-type}` is available when a project type is selected
+- **Global Context**: Both variables are available in all task types and configurations
+- **Error Handling**: Missing context variables cause clear error messages
 
 **Validation:**
 - Unsupported variables cause the tool to fail with clear error messages
 - `{tool}` variables require a tool context to be available
+- `{project-type}` variables require a project type to be selected
 - All variables are validated before substitution
+- Invalid variable syntax is detected and reported
 
 ### Task Execution
 
@@ -1055,13 +1223,15 @@ The tool creates a `.lullabot-project.yml` file in your project root:
 
 ```yaml
 project:
-  type: "drupal"
+  type: "development"
   tool: "cursor"
 
 features:
   taskPreferences:
     memory-bank: true
     rules: true
+    agents-md: true
+    wrapper: false
     vscode-xdebug: false
 
 installation:
@@ -1070,14 +1240,17 @@ installation:
   toolVersion: "1.0.0"
 
 files:
-  - path: ".ai/rules/ai-prompts.md"
+  - path: ".ai/rules/drupal-core.md"
     originalHash: "abc123..."
-  - path: ".ai/rules/coding-standards.md"
+  - path: ".ai/rules/drupal-testing.md"
     originalHash: "def456..."
-  - path: ".ai/rules/project-rules.md"
+  - path: ".ai/rules/code-quality.md"
     originalHash: "ghi789..."
   - path: "AGENTS.md"
     originalHash: "jkl012..."
+    preExisting: false
+  - path: "CURSOR.md"
+    originalHash: "mno345..."
     preExisting: false
 
 packages:
