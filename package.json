@@ -1,6 +1,6 @@
 {
   "name": "lullabot-project",
-  "version": "4.3.0",
+  "version": "4.4.0",
   "description": "Setup development environment with AI tools, memory banks, and project-specific rules",
   "type": "module",
   "main": "index.js",
