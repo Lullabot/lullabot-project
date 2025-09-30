@@ -268,6 +268,7 @@ async function executeEnabledTasks(
   dependencies
 ) {
   const { executeTask, logFn, chalk } = dependencies;
+
   const results = [];
 
   // Accumulate files from previous tasks for agents-md task
@@ -287,8 +288,31 @@ async function executeEnabledTasks(
             files: accumulatedFiles // Pass accumulated files to tasks
           },
           projectRoot: process.cwd(),
-          sharedTasks: fullConfig.shared_tasks // Pass shared tasks for multi-step tasks
+          sharedTasks: fullConfig.shared_tasks, // Pass shared tasks for multi-step tasks
+          task // Pass task configuration for content filtering
         };
+
+        // Preview mode for content filtering
+        if (options.dryRun && task.filters && task.filters.length > 0) {
+          console.log(
+            chalk.yellow(
+              `  Preview: Content filters would be applied to ${taskId} task`
+            )
+          );
+
+          // Show preview information for copy-files tasks
+          if (task.type === 'copy-files' || task.type === 'remote-copy-files') {
+            console.log(
+              chalk.gray(`  Filters: ${task.filters.length} filters configured`)
+            );
+            task.filters.forEach((filter, index) => {
+              console.log(chalk.gray(`    ${index + 1}. ${filter.type}`));
+              if (filter.pattern) {
+                console.log(chalk.gray(`       Pattern: ${filter.pattern}`));
+              }
+            });
+          }
+        }
 
         const result = await executeTask(
           task,
@@ -550,7 +574,7 @@ async function performUpdate(currentConfig, fullConfig, options, dependencies) {
           task,
           tool,
           projectType,
-          false,
+          options.verbose || false,
           enhancedDependencies
         );
 

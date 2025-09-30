@@ -221,9 +221,9 @@ describe('Tool Config Module - Expanded', () => {
   });
 
   describe('Task operations', () => {
-    it('should get tasks for cursor with development project', async () => {
+    it('should get tasks for cursor with drupal project', async () => {
       const config = await toolConfig.loadConfig();
-      const tasks = toolConfig.getTasks('cursor', 'development', config);
+      const tasks = toolConfig.getTasks('cursor', 'drupal', config);
       expect(tasks).toBeDefined();
       expect(tasks['memory-bank']).toBeDefined();
       expect(tasks.rules).toBeDefined();
@@ -260,7 +260,7 @@ describe('Tool Config Module - Expanded', () => {
       const config = await toolConfig.loadConfig();
 
       // Test with project selected
-      const tasksWithProject = toolConfig.getTasks('cursor', 'development', config);
+      const tasksWithProject = toolConfig.getTasks('cursor', 'drupal', config);
       expect(tasksWithProject.rules).toBeDefined();
 
       // Test without project selected

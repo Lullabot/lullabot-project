@@ -3,6 +3,11 @@ import path from 'path';
 import chalk from 'chalk';
 import { getFilesFromGit } from '../git-operations.js';
 import { expandPatterns } from '../utils/pattern-matcher.js';
+import {
+  processContent,
+  shouldProcessFile,
+  validateFilterConfig
+} from '../utils/content-filters.js';
 
 /**
  * Copy files from Git repository to the appropriate location.
@@ -173,8 +178,55 @@ async function copyFiles(
       console.log(chalk.gray(`  Copying ${fileName}${renameInfo}`));
     }
 
-    // Copy the file or directory
-    await fs.copy(sourceItem, targetItem);
+    // Check if we should apply content filters
+    const taskConfig = dependencies.task || {};
+    const shouldFilter =
+      taskConfig.filters &&
+      taskConfig.filters.length > 0 &&
+      shouldProcessFile(targetItem);
+
+    if (shouldFilter) {
+      // Validate filter configuration
+      const validationErrors = validateFilterConfig(taskConfig.filters);
+      if (validationErrors.length > 0) {
+        if (verbose) {
+          console.log(chalk.red(`Filter validation errors for ${fileName}:`));
+          validationErrors.forEach((error) =>
+            console.log(chalk.red(`  ${error}`))
+          );
+        }
+        throw new Error(
+          `Invalid filter configuration: ${validationErrors.join(', ')}`
+        );
+      }
+
+      if (verbose) {
+        console.log(
+          chalk.gray(
+            `  Applying ${taskConfig.filters.length} content filters to ${fileName}`
+          )
+        );
+      }
+
+      // Read content and apply filters
+      const content = await fs.readFile(sourceItem, 'utf8');
+      const processedContent = await processContent(
+        content,
+        taskConfig.filters,
+        sourceItem,
+        verbose
+      );
+
+      // Write filtered content
+      await fs.writeFile(targetItem, processedContent);
+
+      if (verbose) {
+        console.log(chalk.green(`  ✅ Content filtered: ${fileName}`));
+      }
+    } else {
+      // Copy the file or directory (no filtering)
+      await fs.copy(sourceItem, targetItem);
+    }
 
     // Track the file
     const relativePath = path.relative(process.cwd(), targetItem);
@@ -225,6 +277,12 @@ async function execute(
     console.log(chalk.gray(`Copying files from ${source} to ${target}`));
   }
 
+  // Add task configuration to dependencies for filtering
+  const enhancedDependencies = {
+    ...dependencies,
+    task
+  };
+
   // Check if this is a Git-based source (starts with assets/)
   if (source.startsWith('assets/')) {
     // Use Git for files from the repository
@@ -234,7 +292,7 @@ async function execute(
       target,
       verbose,
       items,
-      dependencies
+      enhancedDependencies
     );
     return {
       output: `Successfully copied ${trackedFiles.length} files from Git repository`,
@@ -248,7 +306,7 @@ async function execute(
       target,
       verbose,
       items,
-      dependencies
+      enhancedDependencies
     );
     return {
       output: `Successfully copied ${trackedFiles.length} files from local filesystem`,

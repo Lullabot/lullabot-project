@@ -7,6 +7,11 @@ import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { expandPatterns } from './utils/pattern-matcher.js';
+import {
+  processContent,
+  shouldProcessFile,
+  validateFilterConfig
+} from './utils/content-filters.js';
 
 const execAsync = promisify(exec);
 
@@ -931,8 +936,55 @@ async function copyFilesFromRemote(
       targetDirCreated = true;
     }
 
-    // Copy the file with preserved permissions
-    await fs.copy(sourceItem, targetItem, { preserveTimestamps: true });
+    // Check if we should apply content filters
+    const taskConfig = dependencies.task || {};
+    const shouldFilter =
+      taskConfig.filters &&
+      taskConfig.filters.length > 0 &&
+      shouldProcessFile(targetItem);
+
+    if (shouldFilter) {
+      // Validate filter configuration
+      const validationErrors = validateFilterConfig(taskConfig.filters);
+      if (validationErrors.length > 0) {
+        if (verbose) {
+          console.log(chalk.red(`Filter validation errors for ${fileName}:`));
+          validationErrors.forEach((error) =>
+            console.log(chalk.red(`  ${error}`))
+          );
+        }
+        throw new Error(
+          `Invalid filter configuration: ${validationErrors.join(', ')}`
+        );
+      }
+
+      if (verbose) {
+        console.log(
+          chalk.gray(
+            `  Applying ${taskConfig.filters.length} content filters to ${fileName}`
+          )
+        );
+      }
+
+      // Read content and apply filters
+      const content = await fs.readFile(sourceItem, 'utf8');
+      const processedContent = await processContent(
+        content,
+        taskConfig.filters,
+        sourceItem,
+        verbose
+      );
+
+      // Write filtered content
+      await fs.writeFile(targetItem, processedContent);
+
+      if (verbose) {
+        console.log(chalk.green(`  ✅ Content filtered: ${fileName}`));
+      }
+    } else {
+      // Copy the file with preserved permissions (no filtering)
+      await fs.copy(sourceItem, targetItem, { preserveTimestamps: true });
+    }
 
     // Track the file
     const relativePath = path.relative(process.cwd(), targetItem);

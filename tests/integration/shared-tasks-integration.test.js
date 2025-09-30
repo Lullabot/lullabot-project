@@ -59,7 +59,7 @@ describe('Shared Tasks Integration', () => {
       const tasks = getTasks('cursor', 'development', config);
 
       expect(tasks.rules).toBeDefined();
-      expect(tasks.rules.name).toBe('Project Rules from Prompt Library');
+      expect(tasks.rules.name).toBe('Project rules from prompt library');
       expect(tasks.rules.type).toBe('remote-copy-files');
       expect(tasks.rules.id).toBe('rules');
       expect(tasks.rules.taskSource).toBe('tool');
@@ -132,7 +132,7 @@ describe('Shared Tasks Integration', () => {
 
       // Check that cursor has individual rules task
       const cursorRules = getTasks('cursor', 'development', config).rules;
-      expect(cursorRules.name).toBe('Project Rules from Prompt Library');
+      expect(cursorRules.name).toBe('Project rules from prompt library');
       expect(cursorRules.type).toBe('remote-copy-files');
 
       // Check that other tools have multi-step rules task

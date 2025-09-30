@@ -15,6 +15,7 @@ A CLI tool that helps developers set up their development environment with AI to
 - **Memory Bank Setup**: Configure AI memory banks for enhanced development
 - **Project Rules**: Install project-specific coding standards and guidelines
 - **AGENTS.md Standardization**: Centralized AI development instructions across all tools
+- **Content Filtering**: Advanced content processing for copy operations with regex patterns, frontmatter removal, and line manipulation
 - **Git-Based File Access**: Pull latest rules and configurations from the repository
 - **Version-Pinned Operations**: Automatically uses Git tags matching the tool version for consistency
 - **Flexible Task System**: Dynamic task execution with package installation, file copying, and command execution
@@ -1412,6 +1413,111 @@ lullabot-project remove --dry-run
 lullabot-project init -i cursor -p development --skip-tasks memory-bank --dry-run
 lullabot-project update --force --dry-run
 ```
+
+## Content Filtering
+
+The tool now supports advanced content filtering for `copy-files` and `remote-copy-files` tasks. This allows you to process file content during copy operations, removing unwanted sections, extracting specific content, or transforming files based on patterns.
+
+### Filter Types
+
+#### 1. Frontmatter Removal
+Remove YAML frontmatter from files:
+
+```yaml
+filters:
+  - type: frontmatter-removal
+```
+
+#### 2. Content Extraction
+Extract content using regex patterns:
+
+```yaml
+filters:
+  - type: extract-content
+    pattern: "`````.*?`````"
+    flags: "s"
+    group: 0
+```
+
+#### 3. Line Range Extraction
+Extract specific line ranges:
+
+```yaml
+filters:
+  - type: line-range
+    start: 5
+    end: 20
+```
+
+#### 4. Line Removal
+Remove lines matching patterns:
+
+```yaml
+filters:
+  - type: remove-lines
+    pattern: "^#.*$"
+    flags: "m"
+```
+
+### Common Patterns Library
+
+The tool includes a library of common regex patterns:
+
+- `QUINTUPLE_BACKTICKS`: ``````.*?`````
+- `TRIPLE_BACKTICKS`: ```.*?```
+- `YAML_FRONTMATTER`: `^---\\n.*?\\n---`
+- `COMMENT_LINES`: `^#.*$`
+- `EMPTY_LINES`: `^\\s*$`
+
+### Configuration Examples
+
+#### Extract Content from Quintuple Backticks
+```yaml
+filters:
+  - type: extract-content
+    pattern: "`````.*?`````"
+    flags: "s"
+```
+
+#### Remove Frontmatter and Comments
+```yaml
+filters:
+  - type: frontmatter-removal
+  - type: remove-lines
+    pattern: "^#.*$"
+```
+
+#### Extract Specific Lines
+```yaml
+filters:
+  - type: line-range
+    start: 10
+    end: 50
+```
+
+### Preview Mode
+
+Use the `--dry-run` flag to preview how filters will affect your files:
+
+```bash
+lullabot-project init --dry-run
+```
+
+This will show you which filters will be applied to which files without actually modifying them.
+
+### Error Handling
+
+- **Sequential Processing**: Filters are applied in order, one after another
+- **Error Recovery**: If a filter fails, the tool continues with the next filter
+- **Validation**: Filter configurations are validated before execution
+- **Logging**: Detailed logging shows which filters succeeded or failed
+
+### Integration Points
+
+Content filtering is automatically applied to:
+- `copy-files` tasks when `filters` are specified
+- `remote-copy-files` tasks when `filters` are specified
+- Preview mode with `--dry-run` flag
 
 ## Local Development Mode
 

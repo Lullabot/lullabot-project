@@ -13,7 +13,7 @@
 shared_tasks:
   # Project rules from the centralized prompt library
   rules:
-    name: "Project Rules from Prompt Library"
+    name: "Project rules from prompt library"
     description: "Copy project-specific rules from Lullabot prompt library"
     type: "remote-copy-files"
     link: "https://github.com/Lullabot/prompt_library"
@@ -26,6 +26,28 @@ shared_tasks:
     required: false
     requires-project: true
     prompt: "Would you like to install project-specific rules from the prompt library?"
+
+  # Project-specific agents
+  project-agents:
+    name: "Project-specific agents from prompt library"
+    description: "Copy project-specific agents from Lullabot prompt library"
+    type: "remote-copy-files"
+    link: "https://github.com/Lullabot/prompt_library"
+    repository:
+      url: "https://github.com/Lullabot/prompt_library"
+      type: "branch"
+      target: "main"
+    source: "{project-type}/agents/"
+    target: ".ai/agents"
+    required: false
+    requires-project: true
+    prompt: "Would you like to install project-specific agents from the prompt library?"
+    filters:
+      - type: "frontmatter-removal"
+      - type: "extract-content"
+        pattern: "`````(.*?)`````"
+        flags: "s"
+        group: 1
 
   # AGENTS.md file generation with project-specific rules
   agents-md:
@@ -95,7 +117,7 @@ tools:
     tasks:
       # Cursor-specific memory bank setup
       memory-bank:
-        name: "Memory Bank Setup"
+        name: "Memory bank setup"
         description: "Initialize cursor-bank for AI assistance"
         type: "package-install"
         link: "https://github.com/tacticlaunch/cursor-bank"
@@ -109,6 +131,7 @@ tools:
 
       # Shared rules
       rules: "@shared_tasks.rules"
+      project-agents: "@shared_tasks.project-agents"
 
       # Drupal rules
       drupal-rules:
@@ -149,6 +172,7 @@ tools:
     name: "Gemini"
     tasks:
       rules: "@shared_tasks.rules-and-agents-md"
+      project-agents: "@shared_tasks.project-agents"
       ai-task-manager: "@shared_tasks.ai-task-manager"
       wrapper:
         extends: "@shared_tasks.wrapper"
@@ -159,6 +183,7 @@ tools:
     name: "GitHub Copilot"
     tasks:
       rules: "@shared_tasks.rules-and-agents-md"
+      project-agents: "@shared_tasks.project-agents"
       wrapper:
         extends: "@shared_tasks.wrapper"
         items: { "github-copilot.md": "copilot-instructions.md" }
@@ -181,6 +206,7 @@ tools:
     name: "Windsurf"
     tasks:
       rules: "@shared_tasks.rules-and-agents-md"
+      project-agents: "@shared_tasks.project-agents"
       wrapper:
         extends: "@shared_tasks.wrapper"
         items: { "windsurf.md": "agents.md" }
