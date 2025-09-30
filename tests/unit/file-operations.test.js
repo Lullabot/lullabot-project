@@ -174,4 +174,140 @@ describe('File Operations Module', () => {
       expect(await fs.pathExists(deeplyNested)).toBe(true);
     });
   });
+
+  describe('Content Filtering Integration', () => {
+    test('should apply content filters to copy-files task', async () => {
+      // Create test source directory and file with frontmatter
+      const sourceDir = path.join(testDir, 'test-source');
+      await fs.ensureDir(sourceDir);
+      const sourceFile = path.join(sourceDir, 'test.md');
+      const sourceContent = `---
+title: "Test Document"
+author: "Test Author"
+---
+
+# Test Document
+
+This is the actual content we want to keep.`;
+      await fs.writeFile(sourceFile, sourceContent);
+
+      // Create test task with filters
+      const task = {
+        type: 'copy-files',
+        source: sourceDir,
+        target: path.join(testDir, 'test-target'),
+        filters: [
+          { type: 'frontmatter-removal' }
+        ]
+      };
+
+      // Mock dependencies
+      const mockDependencies = {
+        trackInstalledFile: jest.fn().mockResolvedValue({
+          path: 'test-target.md',
+          originalHash: 'test-hash'
+        })
+      };
+
+      // Execute task
+      const result = await fileOperations.executeTask(
+        task,
+        'cursor',
+        'drupal',
+        true,
+        mockDependencies
+      );
+
+      // Verify result
+      expect(result.files).toHaveLength(1);
+      expect(result.files[0].path).toBe('test-target.md');
+
+      // Verify filtered content
+      const targetFile = path.join(testDir, 'test-target', 'test.md');
+      const filteredContent = await fs.readFile(targetFile, 'utf8');
+      expect(filteredContent).toContain('# Test Document');
+      expect(filteredContent).not.toContain('---');
+      expect(filteredContent).not.toContain('title: "Test Document"');
+    });
+
+    test('should handle filter validation errors', async () => {
+      // Create test source directory
+      const sourceDir = path.join(testDir, 'test-source');
+      await fs.ensureDir(sourceDir);
+      const sourceFile = path.join(sourceDir, 'test.md');
+      await fs.writeFile(sourceFile, 'Test content');
+
+      // Create test task with invalid filter
+      const task = {
+        type: 'copy-files',
+        source: sourceDir,
+        target: path.join(testDir, 'test-target'),
+        filters: [
+          { type: 'extract-content' } // Missing required pattern
+        ]
+      };
+
+      // Mock dependencies
+      const mockDependencies = {
+        trackInstalledFile: jest.fn()
+      };
+
+      // Execute task and expect error
+      await expect(
+        fileOperations.executeTask(
+          task,
+          'cursor',
+          'drupal',
+          true,
+          mockDependencies
+        )
+      ).rejects.toThrow('Invalid filter configuration');
+    });
+
+    test('should skip filtering for binary files', async () => {
+      // Create test source directory and file
+      const sourceDir = path.join(testDir, 'test-source');
+      await fs.ensureDir(sourceDir);
+      const sourceFile = path.join(sourceDir, 'test.txt');
+      const sourceContent = `# Test Document
+
+This is the content.`;
+      await fs.writeFile(sourceFile, sourceContent);
+
+      // Create test task with filters
+      const task = {
+        type: 'copy-files',
+        source: sourceDir,
+        target: path.join(testDir, 'test-target'),
+        filters: [
+          { type: 'frontmatter-removal' }
+        ]
+      };
+
+      // Mock dependencies
+      const mockDependencies = {
+        trackInstalledFile: jest.fn().mockResolvedValue({
+          path: 'test-target.txt',
+          originalHash: 'test-hash'
+        })
+      };
+
+      // Execute task
+      const result = await fileOperations.executeTask(
+        task,
+        'cursor',
+        'drupal',
+        true,
+        mockDependencies
+      );
+
+      // Verify result
+      expect(result.files).toHaveLength(1);
+
+      // Verify content was copied as-is (no filtering applied)
+      const targetFile = path.join(testDir, 'test-target', 'test.txt');
+      const copiedContent = await fs.readFile(targetFile, 'utf8');
+      expect(copiedContent).toBe(sourceContent);
+    });
+  });
 });

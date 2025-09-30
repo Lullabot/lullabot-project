@@ -40,7 +40,7 @@ async function execute(
       remoteSource,
       target,
       verbose,
-      dependencies,
+      { ...dependencies, task }, // Pass the task configuration
       items
     );
 
